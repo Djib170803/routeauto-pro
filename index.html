@@ -494,18 +494,18 @@
         </div>
       </div>
 
-      <!-- TRAFIC RÉEL GOOGLE MAPS -->
+      <!-- TRAFIC RÉEL TOMTOM -->
       <div class="card" id="traffic-card">
-        <div class="card-title"><span>🚦</span> Trafic Google Maps</div>
+        <div class="card-title"><span>🚦</span> Trafic TomTom</div>
         <div style="font-size:11px;color:var(--text2);margin-bottom:10px;line-height:1.7;">
-          Temps de trajet réels avec bouchons selon l'heure (même moteur que Maps/Waze).<br>
-          <a href="https://console.cloud.google.com/apis/library/distance-matrix-backend.googleapis.com" target="_blank" style="color:var(--accent);font-weight:600;">Activer l'API ici</a>
-          — <span style="color:var(--text3);">~200$/mois offerts ≈ 40 000 trajets gratuits</span>
+          Temps de trajet réels avec bouchons selon l'heure du trajet.<br>
+          <a href="https://developer.tomtom.com/user/register" target="_blank" style="color:var(--accent);font-weight:600;">Clé gratuite ici</a>
+          — <span style="color:var(--text3);">2 500 req/jour, sans CB</span>
         </div>
         <div class="field" style="margin-bottom:8px;">
-          <input type="text" id="gmaps-key" placeholder="Clé API Google Maps… (obligatoire)"
+          <input type="text" id="tomtom-key" placeholder="Clé API TomTom… (obligatoire)"
             style="font-size:12px;letter-spacing:.5px;"
-            oninput="saveGmapsKey(this.value)">
+            oninput="saveTomTomKey(this.value)">
         </div>
         <div id="traffic-status" style="font-size:11px;color:#ff6b6b;">
           🔴 Clé requise pour calculer la tournée
@@ -871,11 +871,11 @@ window.addEventListener('DOMContentLoaded', () => {
   buildTimePicker('lunch-start', '12', '30', 0, 23);
   buildTimePicker('lunch-end',   '13', '30', 0, 23);
   buildTimePicker('rdv-time',    '10', '00', 0, 23);
-  // Restore Google Maps key
-  const savedKey = localStorage.getItem('gmaps_key') || '';
+  // Restore TomTom key
+  const savedKey = localStorage.getItem('tomtom_key') || '';
   if (savedKey) {
-    document.getElementById('gmaps-key').value = savedKey;
-    saveGmapsKey(savedKey);
+    document.getElementById('tomtom-key').value = savedKey;
+    saveTomTomKey(savedKey);
   }
 });
 
@@ -1518,16 +1518,16 @@ async function loadSector() {
 // ═══════════════════════════════════════════════════════════
 //  ROUTE OPTIMIZATION (Nearest Neighbor + time scheduling)
 // ═══════════════════════════════════════════════════════════
-// ── GOOGLE MAPS API ───────────────────────────────────────────────
-let gmapsKey = localStorage.getItem('gmaps_key') || '';
+// ── TOMTOM API ────────────────────────────────────────────────────
+let tomtomKey = localStorage.getItem('tomtom_key') || '';
 
-function saveGmapsKey(val) {
-  gmapsKey = val.trim();
-  localStorage.setItem('gmaps_key', gmapsKey);
+function saveTomTomKey(val) {
+  tomtomKey = val.trim();
+  localStorage.setItem('tomtom_key', tomtomKey);
   const st = document.getElementById('traffic-status');
-  if (gmapsKey) {
+  if (tomtomKey) {
     st.style.color = 'var(--accent2)';
-    st.textContent = '🟢 Google Maps actif — trafic temps réel';
+    st.textContent = '🟢 TomTom actif — trafic temps réel';
   } else {
     st.style.color = '#ff6b6b';
     st.textContent = '🔴 Clé requise pour calculer la tournée';
@@ -1535,41 +1535,38 @@ function saveGmapsKey(val) {
 }
 
 async function getRealTravelTime(fromLat, fromLng, toLat, toLng, departAtMin) {
-  // Heure de départ en timestamp UNIX (aujourd'hui à l'heure prévue du trajet)
   const now = new Date();
   const depart = new Date(now.getFullYear(), now.getMonth(), now.getDate(),
     Math.floor(departAtMin / 60), departAtMin % 60, 0);
-  // Ne pas passer dans le passé (Google refuse les timestamps passés)
-  const ts = Math.max(Math.floor(depart.getTime() / 1000), Math.floor(Date.now() / 1000) + 60);
+  if (depart.getTime() < Date.now()) depart.setTime(Date.now() + 120000);
+  const departISO = depart.toISOString();
 
-  const dmUrl = `https://maps.googleapis.com/maps/api/distancematrix/json`
-    + `?origins=${fromLat},${fromLng}`
-    + `&destinations=${toLat},${toLng}`
-    + `&departure_time=${ts}`
-    + `&traffic_model=best_guess`
-    + `&key=${gmapsKey}`;
+  const ttUrl = `https://api.tomtom.com/routing/1/calculateRoute`
+    + `/${fromLat},${fromLng}:${toLat},${toLng}/json`
+    + `?key=${tomtomKey}`
+    + `&departAt=${encodeURIComponent(departISO)}`
+    + `&traffic=true`
+    + `&travelMode=car`
+    + `&routeType=fastest`;
 
-  const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(dmUrl)}`;
+  const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(ttUrl)}`;
 
   try {
     const r = await fetch(proxyUrl);
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json();
-    const el = d.rows?.[0]?.elements?.[0];
-    if (!el || el.status !== 'OK') throw new Error(el?.status || 'no element');
-    // duration_in_traffic = avec bouchons, duration = sans
-    const travelSec = el.duration_in_traffic?.value ?? el.duration?.value ?? 0;
-    const distM = el.distance?.value ?? 0;
+    const summary = d.routes?.[0]?.summary;
+    if (!summary) throw new Error('no route');
     return {
-      travelMin: Math.max(1, Math.round(travelSec / 60)),
-      distKm: Math.round(distM / 100) / 10,
-      source: 'gmaps'
+      travelMin: Math.max(1, Math.round(summary.travelTimeInSeconds / 60)),
+      distKm: Math.round(summary.lengthInMeters / 100) / 10,
+      source: 'tomtom'
     };
   } catch(e) {
-    console.warn('Google Maps API error:', e.message);
-    throw e; // on ne fait pas de fallback — clé obligatoire
+    console.warn('TomTom API error:', e.message);
+    throw e;
   }
-  // Pas de fallback — clé Google Maps obligatoire
+  // Pas de fallback — clé obligatoire
   const dist = haversine(fromLat, fromLng, toLat, toLng) * 1.3;
   return {
     travelMin: Math.max(1, Math.round((dist / 50) * 60)),
@@ -1606,12 +1603,12 @@ async function optimizeRoute() {
   }
 
   // ── PHASE 2 : temps de trajet réels (Google Maps obligatoire)
-  if (!gmapsKey) {
+  if (!tomtomKey) {
     hideLoading();
-    toast('🔴 Entrez une clé API Google Maps pour calculer la tournée', 4000);
+    toast('🔴 Entrez une clé API TomTom pour calculer la tournée', 4000);
     document.getElementById('traffic-status').style.color = '#ff6b6b';
     document.getElementById('traffic-status').textContent = '🔴 Clé requise pour calculer la tournée';
-    document.getElementById('gmaps-key').focus();
+    document.getElementById('tomtom-key').focus();
     return;
   }
 
@@ -1675,7 +1672,7 @@ async function optimizeRoute() {
   // Mise à jour statut trafic
   const st = document.getElementById('traffic-status');
   st.style.color = 'var(--accent2)';
-  st.textContent = `🟢 ${route.length} trajets calculés avec trafic temps réel (Google Maps)`;
+  st.textContent = `🟢 ${route.length} trajets calculés avec trafic temps réel (TomTom)`;
 
   currentStopIdx = 0;
   tourStarted = true;
@@ -1689,7 +1686,7 @@ async function optimizeRoute() {
   document.getElementById('tour-badge').textContent = '● Tournée active';
   updateActiveBanner();
 
-  toast(`✅ ${route.length} visites — temps de trajet réels Google Maps`);
+  toast(`✅ ${route.length} visites — temps de trajet réels TomTom`);
 }
 
 function renderRouteList() {
