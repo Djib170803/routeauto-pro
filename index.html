@@ -1454,13 +1454,20 @@ async function loadSector() {
     haversine(refLat, refLng, a.lat, a.lng) - haversine(refLat, refLng, b.lat, b.lng)
   );
 
-  // Prendre les MAX_CANDIDATES plus proches, puis trouver le cluster le plus dense parmi eux
-  const MAX_CANDIDATES = Math.min(sorted.length, 120);
+  // Calculer combien de visites max sont possibles dans la journée (pour limiter les candidats)
+  const visitDurTmp = getVisitDuration();
+  const startHTmp = timeToMin(getTimePicker('start-time'));
+  const endHTmp   = timeToMin(getTimePicker('end-time'));
+  const lunchSTmp = timeToMin(getTimePicker('lunch-start'));
+  const lunchETmp = timeToMin(getTimePicker('lunch-end'));
+  const workMinTmp = (endHTmp - startHTmp) - (lunchETmp - lunchSTmp);
+  // Marge : x1.8 pour absorber les temps de trajet (on calculera l'exact en Phase 2)
+  const maxVisitsEstim = Math.ceil(workMinTmp / visitDurTmp);
+  const MAX_CANDIDATES = Math.min(sorted.length, Math.max(maxVisitsEstim * 3, 60));
   const candidates = sorted.slice(0, MAX_CANDIDATES);
 
-  // Cluster density : pour chaque garage, compter combien d'autres sont dans un rayon de 15km
-  // → prendre le centre du meilleur cluster et sortir les 50 garages les plus proches de lui
-  const CLUSTER_R = 15; // km
+  // Trouver le cluster le plus dense autour du dépôt
+  const CLUSTER_R = 20; // km
   let bestCenter = candidates[0];
   let bestScore = 0;
   candidates.forEach(g => {
@@ -1468,9 +1475,10 @@ async function loadSector() {
     if (score > bestScore) { bestScore = score; bestCenter = g; }
   });
 
-  const MAX_DAY = 50; // max garages proposés par jour
+  // Garder assez de candidats pour remplir la journée (x2 pour avoir du choix)
+  const MAX_DAY = Math.min(candidates.length, maxVisitsEstim * 2);
   sectorGarages = candidates
-    .filter(g => haversine(bestCenter.lat, bestCenter.lng, g.lat, g.lng) <= CLUSTER_R * 1.5)
+    .filter(g => haversine(bestCenter.lat, bestCenter.lng, g.lat, g.lng) <= CLUSTER_R * 2)
     .sort((a,b) => haversine(refLat, refLng, a.lat, a.lng) - haversine(refLat, refLng, b.lat, b.lng))
     .slice(0, MAX_DAY);
 
@@ -1551,22 +1559,35 @@ async function getRealTravelTime(fromLat, fromLng, toLat, toLng, departAtMin) {
 
   const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(ttUrl)}`;
 
-  try {
-    const r = await fetch(proxyUrl);
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const d = await r.json();
-    const summary = d.routes?.[0]?.summary;
-    if (!summary) throw new Error('no route');
-    return {
-      travelMin: Math.max(1, Math.round(summary.travelTimeInSeconds / 60)),
-      distKm: Math.round(summary.lengthInMeters / 100) / 10,
-      source: 'tomtom'
-    };
-  } catch(e) {
-    console.warn('TomTom API error:', e.message);
-    throw e;
+  // 2 tentatives max avec timeout de 8s chacune
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8000);
+      const r = await fetch(proxyUrl, { signal: controller.signal });
+      clearTimeout(timer);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json();
+      const summary = d.routes?.[0]?.summary;
+      if (!summary) throw new Error('no route');
+      return {
+        travelMin: Math.max(1, Math.round(summary.travelTimeInSeconds / 60)),
+        distKm: Math.round(summary.lengthInMeters / 100) / 10,
+        source: 'tomtom'
+      };
+    } catch(e) {
+      console.warn(`TomTom tentative ${attempt + 1} échouée:`, e.message);
+      if (attempt === 0) await new Promise(r => setTimeout(r, 1000)); // attend 1s avant retry
+    }
   }
-  // Pas de fallback — clé obligatoire
+  // Fallback haversine sur ce trajet uniquement — la tournée continue
+  const dist = haversine(fromLat, fromLng, toLat, toLng) * 1.3;
+  return {
+    travelMin: Math.max(1, Math.round((dist / 50) * 60)),
+    distKm: Math.round(dist * 10) / 10,
+    source: 'fallback'
+  };
+  // (code mort — fallback géré dans le catch)
   const dist = haversine(fromLat, fromLng, toLat, toLng) * 1.3;
   return {
     travelMin: Math.max(1, Math.round((dist / 50) * 60)),
@@ -1587,7 +1608,8 @@ async function optimizeRoute() {
   const startLat = depot ? depot.lat : sectorGarages[0].lat;
   const startLng = depot ? depot.lng : sectorGarages[0].lng;
 
-  // ── PHASE 1 : ordre optimal (Nearest Neighbor, haversine, instantané)
+  // ── PHASE 1a : Nearest Neighbor (point de départ rapide) ────────
+  showLoading('🧠 Calcul de l\'itinéraire optimal…');
   let remaining = [...sectorGarages];
   let ordered = [];
   let curLat = startLat, curLng = startLng;
@@ -1602,6 +1624,36 @@ async function optimizeRoute() {
     remaining.splice(best, 1);
   }
 
+  // ── PHASE 1b : 2-opt — amélioration de la route (enlève les croisements) ──
+  // Calcule la distance totale d'une route
+  function routeDist(arr) {
+    let d = haversine(startLat, startLng, arr[0].lat, arr[0].lng);
+    for (let i = 0; i < arr.length - 1; i++)
+      d += haversine(arr[i].lat, arr[i].lng, arr[i+1].lat, arr[i+1].lng);
+    return d;
+  }
+
+  let improved = true;
+  let iterations = 0;
+  while (improved && iterations < 50) {
+    improved = false;
+    iterations++;
+    for (let i = 0; i < ordered.length - 1; i++) {
+      for (let j = i + 2; j < ordered.length; j++) {
+        // Tester l'inversion du segment [i+1 ... j]
+        const before = haversine(ordered[i].lat, ordered[i].lng, ordered[i+1].lat, ordered[i+1].lng)
+                     + haversine(ordered[j].lat, ordered[j].lng, (ordered[j+1] || {lat:startLat,lng:startLng}).lat, (ordered[j+1] || {lat:startLat,lng:startLng}).lng);
+        const after  = haversine(ordered[i].lat, ordered[i].lng, ordered[j].lat, ordered[j].lng)
+                     + haversine(ordered[i+1].lat, ordered[i+1].lng, (ordered[j+1] || {lat:startLat,lng:startLng}).lat, (ordered[j+1] || {lat:startLat,lng:startLng}).lng);
+        if (after < before - 0.001) {
+          // Inverser le segment → route plus courte
+          ordered.slice(i+1, j+1).reverse().forEach((g, k) => { ordered[i+1+k] = g; });
+          improved = true;
+        }
+      }
+    }
+  }
+
   // ── PHASE 2 : temps de trajet réels (Google Maps obligatoire)
   if (!tomtomKey) {
     hideLoading();
@@ -1612,7 +1664,8 @@ async function optimizeRoute() {
     return;
   }
 
-  const maxStops = Math.min(ordered.length, 40);
+  // Pas de plafond fixe — on s'arrête quand la journée est pleine
+  const maxStops = ordered.length;
   showLoading('🚦 Calcul des temps de trajet réels…');
 
   route = [];
@@ -1621,9 +1674,11 @@ async function optimizeRoute() {
 
   for (let i = 0; i < maxStops; i++) {
     const g = ordered[i];
-    setLoadingBar(Math.round((i / maxStops) * 90));
+    // Progression basée sur le temps restant plutôt que le nombre de stops
+    const timeProgress = Math.round(((currentTime - startH) / (endH - startH)) * 90);
+    setLoadingBar(Math.min(timeProgress, 88));
     document.getElementById('loading-text').textContent =
-      `🚦 Trajet ${i + 1}/${maxStops} — ${g.title}`;
+      `🚦 Trajet ${i + 1} — ${g.title} (${minToTime(currentTime)})`;
 
     const { travelMin, distKm } = await getRealTravelTime(
       prevLat, prevLng, g.lat, g.lng, currentTime
