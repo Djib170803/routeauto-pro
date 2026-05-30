@@ -1608,8 +1608,18 @@ async function optimizeRoute() {
   const startLat = depot ? depot.lat : sectorGarages[0].lat;
   const startLng = depot ? depot.lng : sectorGarages[0].lng;
 
-  // ── PHASE 1a : Nearest Neighbor (point de départ rapide) ────────
+  // Vérifier la clé TomTom avant tout
+  if (!tomtomKey) {
+    toast('🔴 Entrez une clé API TomTom pour calculer la tournée', 4000);
+    document.getElementById('traffic-status').style.color = '#ff6b6b';
+    document.getElementById('traffic-status').textContent = '🔴 Clé requise pour calculer la tournée';
+    document.getElementById('tomtom-key').focus();
+    return;
+  }
+
   showLoading('🧠 Calcul de l\'itinéraire optimal…');
+
+  // ── PHASE 1a : Nearest Neighbor ───────────────────────────────
   let remaining = [...sectorGarages];
   let ordered = [];
   let curLat = startLat, curLng = startLng;
@@ -1624,49 +1634,31 @@ async function optimizeRoute() {
     remaining.splice(best, 1);
   }
 
-  // ── PHASE 1b : 2-opt — amélioration de la route (enlève les croisements) ──
-  // Calcule la distance totale d'une route
-  function routeDist(arr) {
-    let d = haversine(startLat, startLng, arr[0].lat, arr[0].lng);
-    for (let i = 0; i < arr.length - 1; i++)
-      d += haversine(arr[i].lat, arr[i].lng, arr[i+1].lat, arr[i+1].lng);
-    return d;
-  }
-
-  let improved = true;
-  let iterations = 0;
-  while (improved && iterations < 50) {
-    improved = false;
-    iterations++;
+  // ── PHASE 1b : 2-opt (enlève les croisements) ─────────────────
+  let twoOptImproved = true;
+  let twoOptIter = 0;
+  while (twoOptImproved && twoOptIter < 50) {
+    twoOptImproved = false;
+    twoOptIter++;
     for (let i = 0; i < ordered.length - 1; i++) {
       for (let j = i + 2; j < ordered.length; j++) {
-        // Tester l'inversion du segment [i+1 ... j]
+        const next = ordered[j + 1] || { lat: startLat, lng: startLng };
         const before = haversine(ordered[i].lat, ordered[i].lng, ordered[i+1].lat, ordered[i+1].lng)
-                     + haversine(ordered[j].lat, ordered[j].lng, (ordered[j+1] || {lat:startLat,lng:startLng}).lat, (ordered[j+1] || {lat:startLat,lng:startLng}).lng);
+                     + haversine(ordered[j].lat, ordered[j].lng, next.lat, next.lng);
         const after  = haversine(ordered[i].lat, ordered[i].lng, ordered[j].lat, ordered[j].lng)
-                     + haversine(ordered[i+1].lat, ordered[i+1].lng, (ordered[j+1] || {lat:startLat,lng:startLng}).lat, (ordered[j+1] || {lat:startLat,lng:startLng}).lng);
+                     + haversine(ordered[i+1].lat, ordered[i+1].lng, next.lat, next.lng);
         if (after < before - 0.001) {
-          // Inverser le segment → route plus courte
-          ordered.slice(i+1, j+1).reverse().forEach((g, k) => { ordered[i+1+k] = g; });
-          improved = true;
+          const seg = ordered.slice(i+1, j+1).reverse();
+          seg.forEach((g, k) => { ordered[i+1+k] = g; });
+          twoOptImproved = true;
         }
       }
     }
   }
 
-  // ── PHASE 2 : temps de trajet réels (Google Maps obligatoire)
-  if (!tomtomKey) {
-    hideLoading();
-    toast('🔴 Entrez une clé API TomTom pour calculer la tournée', 4000);
-    document.getElementById('traffic-status').style.color = '#ff6b6b';
-    document.getElementById('traffic-status').textContent = '🔴 Clé requise pour calculer la tournée';
-    document.getElementById('tomtom-key').focus();
-    return;
-  }
-
-  // Pas de plafond fixe — on s'arrête quand la journée est pleine
+  // ── PHASE 2 : temps de trajet réels TomTom ────────────────────
   const maxStops = ordered.length;
-  showLoading('🚦 Calcul des temps de trajet réels…');
+  document.getElementById('loading-text').textContent = '🚦 Calcul des temps de trajet réels…';
 
   route = [];
   let currentTime = startH;

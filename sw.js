@@ -1,5 +1,5 @@
 // Service Worker — RouteAuto Pro
-const CACHE = 'routeauto-v1';
+const CACHE = 'routeauto-v2';
 
 // Fichiers à mettre en cache pour mode hors-ligne
 const PRECACHE = [
