@@ -1,0 +1,24 @@
+{
+  "name": "RouteAuto Pro",
+  "short_name": "RouteAuto",
+  "description": "Optimisation de tournées commerciales garages",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0d0d1a",
+  "theme_color": "#7c6aff",
+  "lang": "fr",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Nouvelle tournée",
+      "short_name": "Tournée",
+      "url": "./index.html",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "categories": ["business", "navigation", "productivity"]
+}

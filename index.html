@@ -1,0 +1,2401 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>RouteAuto Pro — Tournée Commerciale</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#7c6aff">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="RouteAuto">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0b0f;
+    --bg2: #111318;
+    --bg3: #181c24;
+    --card: rgba(255,255,255,0.04);
+    --card-border: rgba(255,255,255,0.08);
+    --accent: #7c6aff;
+    --accent2: #06d6a0;
+    --accent3: #ff6b6b;
+    --accent4: #ffd166;
+    --text: #f0f0f5;
+    --text2: #8b8fa8;
+    --text3: #555870;
+    --radius: 16px;
+    --radius-sm: 10px;
+    --shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+
+  /* ─── HEADER ─── */
+  header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 20px; background:var(--bg2);
+    border-bottom:1px solid var(--card-border); z-index:100; flex-shrink:0;
+  }
+  .logo { display:flex; align-items:center; gap:10px; }
+  .logo-icon { width:36px; height:36px; background:linear-gradient(135deg,#7c6aff,#06d6a0); border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:18px; }
+  .logo-text { font-size:17px; font-weight:700; }
+  .logo-sub { font-size:11px; color:var(--text2); font-weight:400; }
+  .header-right { display:flex; align-items:center; gap:10px; }
+  .badge { padding:4px 10px; border-radius:20px; font-size:12px; font-weight:600; }
+  .badge-active { background:rgba(6,214,160,0.15); color:var(--accent2); border:1px solid rgba(6,214,160,0.3); }
+  .badge-pause { background:rgba(255,107,107,0.15); color:var(--accent3); border:1px solid rgba(255,107,107,0.3); }
+  #clock { font-size:15px; font-weight:600; color:var(--text2); }
+
+  /* ─── LAYOUT ─── */
+  .main { display:flex; flex:1; overflow:hidden; }
+
+  /* ─── SIDEBAR ─── */
+  .sidebar {
+    width:360px; min-width:360px; background:var(--bg2); border-right:1px solid var(--card-border);
+    display:flex; flex-direction:column; overflow:hidden; z-index:10;
+  }
+  .sidebar-tabs { display:flex; border-bottom:1px solid var(--card-border); flex-shrink:0; }
+  .tab-btn {
+    flex:1; padding:12px 8px; font-size:12px; font-weight:600; color:var(--text2);
+    background:none; border:none; cursor:pointer; border-bottom:2px solid transparent;
+    transition:all .2s; letter-spacing:.3px; text-transform:uppercase;
+  }
+  .tab-btn.active { color:var(--accent); border-bottom-color:var(--accent); }
+  .tab-content { display:none; flex:1; overflow-y:auto; padding:16px; flex-direction:column; gap:12px; }
+  .tab-content.active { display:flex; }
+
+  /* ─── CARDS ─── */
+  .card {
+    background:var(--card); border:1px solid var(--card-border);
+    border-radius:var(--radius); padding:14px; transition:border-color .2s;
+  }
+  .card:hover { border-color:rgba(124,106,255,0.3); }
+  .card-title { font-size:11px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.5px; margin-bottom:10px; display:flex; align-items:center; gap:6px; }
+  .card-title span { font-size:14px; }
+
+  /* ─── FORM ─── */
+  .field { margin-bottom:10px; }
+  .field label { display:block; font-size:11px; color:var(--text2); margin-bottom:5px; font-weight:500; }
+  .field input, .field select {
+    width:100%; padding:9px 12px; background:rgba(255,255,255,0.05);
+    border:1px solid var(--card-border); border-radius:var(--radius-sm);
+    color:var(--text); font-size:13px; font-family:inherit; outline:none;
+    transition:border-color .2s;
+  }
+  .field input:focus, .field select:focus { border-color:var(--accent); }
+  .field select option { background:#1a1d26; }
+
+  /* ─── BUTTONS ─── */
+  .btn {
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    padding:9px 16px; border-radius:var(--radius-sm); font-size:13px; font-weight:600;
+    font-family:inherit; cursor:pointer; border:none; transition:all .2s; width:100%;
+  }
+  .btn-primary { background:linear-gradient(135deg,#7c6aff,#5a4dcc); color:#fff; }
+  .btn-primary:hover { transform:translateY(-1px); box-shadow:0 4px 20px rgba(124,106,255,.4); }
+  .btn-success { background:linear-gradient(135deg,#06d6a0,#059678); color:#fff; }
+  .btn-success:hover { transform:translateY(-1px); box-shadow:0 4px 20px rgba(6,214,160,.4); }
+  .btn-danger { background:linear-gradient(135deg,#ff6b6b,#cc4444); color:#fff; }
+  .btn-outline { background:transparent; border:1px solid var(--card-border); color:var(--text2); }
+  .btn-outline:hover { border-color:var(--accent); color:var(--text); }
+  .btn-sm { padding:6px 12px; font-size:12px; }
+  .btn:disabled { opacity:.4; cursor:not-allowed; transform:none!important; }
+
+  /* ─── STATS ROW ─── */
+  .stats-row { display:flex; gap:8px; }
+  .stat-box {
+    flex:1; background:var(--card); border:1px solid var(--card-border);
+    border-radius:var(--radius-sm); padding:10px; text-align:center;
+  }
+  .stat-val { font-size:20px; font-weight:800; color:var(--accent); }
+  .stat-lbl { font-size:10px; color:var(--text2); font-weight:500; margin-top:2px; text-transform:uppercase; }
+
+  /* ─── ROUTE LIST ─── */
+  .route-item {
+    display:flex; align-items:center; gap:10px; padding:10px 12px;
+    border-radius:var(--radius-sm); border:1px solid var(--card-border);
+    background:var(--card); cursor:pointer; transition:all .2s; margin-bottom:6px;
+  }
+  .route-item:hover { border-color:rgba(124,106,255,.4); transform:translateX(2px); }
+  .route-item.current { border-color:var(--accent); background:rgba(124,106,255,.1); }
+  .route-item.visited { opacity:.5; }
+  .route-item.rdv { border-color:var(--accent4); background:rgba(255,209,102,.07); }
+  .stop-num {
+    width:26px; height:26px; min-width:26px; border-radius:50%; background:var(--accent);
+    display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700;
+    color:#fff;
+  }
+  .stop-num.current { background:var(--accent2); animation:pulse 1.5s infinite; }
+  .stop-num.visited { background:var(--text3); }
+  .stop-num.rdv { background:var(--accent4); color:#000; }
+  @keyframes pulse { 0%,100%{box-shadow:0 0 0 0 rgba(6,214,160,.4)} 50%{box-shadow:0 0 0 8px rgba(6,214,160,0)} }
+  .stop-info { flex:1; min-width:0; }
+  .stop-name { font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .stop-meta { font-size:11px; color:var(--text2); }
+  .stop-time { font-size:11px; font-weight:600; color:var(--accent2); white-space:nowrap; }
+
+  /* ─── ACTIVE STOP BANNER ─── */
+  #active-banner {
+    display:none; margin:0 16px 12px; background:linear-gradient(135deg,rgba(124,106,255,.2),rgba(6,214,160,.1));
+    border:1px solid rgba(124,106,255,.4); border-radius:var(--radius); padding:14px;
+  }
+  #active-banner.show { display:block; }
+  .banner-label { font-size:11px; color:var(--accent); font-weight:700; text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px; }
+  .banner-name { font-size:17px; font-weight:800; margin-bottom:2px; }
+  .banner-addr { font-size:12px; color:var(--text2); margin-bottom:10px; }
+  .banner-btns { display:flex; gap:8px; }
+
+  /* ─── MAP ─── */
+  #map { flex:1; position:relative; }
+  .leaflet-tile-pane { filter:brightness(.85) saturate(.7); }
+
+  /* ─── AI CHAT ─── */
+  #ai-fab {
+    position:fixed; bottom:24px; right:24px; width:56px; height:56px;
+    background:linear-gradient(135deg,#7c6aff,#e84393); border-radius:50%;
+    display:flex; align-items:center; justify-content:center; font-size:22px;
+    cursor:pointer; box-shadow:0 4px 20px rgba(124,106,255,.5); z-index:999;
+    border:none; transition:all .2s; animation:float 3s ease-in-out infinite;
+  }
+  #ai-fab.listening {
+    background:linear-gradient(135deg,#ff4444,#ff8800) !important;
+    animation:pulse 1s infinite !important;
+    box-shadow:0 0 0 8px rgba(255,68,68,.2) !important;
+  }
+  @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+  #ai-fab:hover { transform:scale(1.1)!important; }
+
+  #ai-panel {
+    position:fixed; bottom:96px; right:24px; width:340px;
+    background:var(--bg2); border:1px solid var(--card-border); border-radius:var(--radius);
+    box-shadow:var(--shadow); z-index:998; display:none; flex-direction:column;
+    max-height:480px; overflow:hidden;
+  }
+  #ai-panel.open { display:flex; }
+  .ai-header {
+    padding:14px 16px; border-bottom:1px solid var(--card-border);
+    display:flex; align-items:center; gap:10px;
+  }
+  .ai-avatar {
+    width:34px; height:34px; background:linear-gradient(135deg,#7c6aff,#06d6a0);
+    border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:16px;
+  }
+  .ai-name { font-weight:700; font-size:14px; }
+  .ai-status { font-size:11px; color:var(--accent2); }
+  .ai-messages { flex:1; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:10px; }
+  .msg { max-width:85%; padding:10px 13px; border-radius:14px; font-size:13px; line-height:1.5; }
+  .msg.bot { background:rgba(124,106,255,.15); border:1px solid rgba(124,106,255,.2); align-self:flex-start; border-bottom-left-radius:4px; }
+  .msg.user { background:linear-gradient(135deg,#7c6aff,#5a4dcc); color:#fff; align-self:flex-end; border-bottom-right-radius:4px; }
+  .ai-input-row { display:flex; gap:8px; padding:12px; border-top:1px solid var(--card-border); }
+  .ai-input {
+    flex:1; background:rgba(255,255,255,.05); border:1px solid var(--card-border);
+    border-radius:var(--radius-sm); padding:8px 12px; color:var(--text); font-size:13px;
+    font-family:inherit; outline:none;
+  }
+  .ai-input:focus { border-color:var(--accent); }
+  .ai-send {
+    width:36px; height:36px; background:var(--accent); border:none; border-radius:var(--radius-sm);
+    color:#fff; font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    transition:all .2s;
+  }
+  .ai-send:hover { transform:scale(1.1); }
+
+  /* ─── GEOCODING OVERLAY ─── */
+  #loading-overlay {
+    position:fixed; inset:0; background:rgba(10,11,15,.9); z-index:9999;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px;
+    display:none;
+  }
+  #loading-overlay.show { display:flex; }
+  .loader-ring {
+    width:60px; height:60px; border:3px solid rgba(124,106,255,.2);
+    border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite;
+  }
+  @keyframes spin { to{transform:rotate(360deg)} }
+  #loading-text { font-size:15px; color:var(--text2); }
+  #loading-progress { width:200px; height:4px; background:rgba(255,255,255,.1); border-radius:2px; overflow:hidden; }
+  #loading-bar { height:100%; background:linear-gradient(90deg,var(--accent),var(--accent2)); width:0%; transition:width .3s; }
+
+  /* ─── QUICK ACTIONS ─── */
+  .quick-actions { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+  .qa-btn {
+    padding:5px 10px; background:rgba(124,106,255,.1); border:1px solid rgba(124,106,255,.2);
+    border-radius:20px; font-size:11px; font-weight:600; color:var(--accent); cursor:pointer;
+    transition:all .2s; font-family:inherit;
+  }
+  .qa-btn:hover { background:rgba(124,106,255,.25); }
+
+  /* ─── RDV MODAL ─── */
+  #rdv-modal {
+    position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:5000; display:none;
+    align-items:center; justify-content:center;
+  }
+  #rdv-modal.open { display:flex; }
+  .modal-box { background:var(--bg2); border:1px solid var(--card-border); border-radius:var(--radius); padding:24px; width:300px; box-shadow:var(--shadow); }
+  .modal-title { font-size:16px; font-weight:700; margin-bottom:16px; }
+  .modal-close { float:right; background:none; border:none; color:var(--text2); font-size:18px; cursor:pointer; }
+
+  /* ─── DURATION GRID ─── */
+  .duration-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+  }
+  .dur-btn {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 10px 4px; border-radius: var(--radius-sm);
+    background: rgba(255,255,255,.05); border: 1px solid var(--card-border);
+    color: var(--text2); cursor: pointer; font-family: inherit;
+    transition: all .15s; line-height: 1.1;
+  }
+  .dur-btn:hover { border-color: var(--accent); color: var(--text); background: rgba(124,106,255,.1); }
+  .dur-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .dur-btn { font-size: 18px; font-weight: 800; }
+  .dur-btn span { font-size: 9px; font-weight: 600; opacity: .7; text-transform: uppercase; letter-spacing: .3px; margin-top: 2px; }
+
+  /* ─── TIME PICKER DISPLAY ─── */
+  .time-picker {
+    display: flex; align-items: center; gap: 0;
+    background: rgba(255,255,255,0.05); border: 1px solid var(--card-border);
+    border-radius: var(--radius-sm); overflow: hidden; cursor: pointer;
+    transition: border-color .2s; height: 44px;
+  }
+  .time-picker:hover { border-color: var(--accent); }
+  .tp-part {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    font-size: 20px; font-weight: 700; color: var(--text);
+    padding: 0 10px; height: 100%; transition: background .15s;
+  }
+  .tp-part:hover { background: rgba(124,106,255,.2); }
+  .tp-part.active { background: rgba(124,106,255,.25); color: var(--accent); }
+  .tp-sep-disp {
+    font-size: 20px; font-weight: 800; color: var(--text2);
+    padding: 0 2px; pointer-events: none;
+  }
+
+  /* ─── CLOCK MODAL ─── */
+  #clock-modal {
+    position: fixed; inset: 0; background: rgba(0,0,0,.75);
+    z-index: 6000; display: none; align-items: center; justify-content: center;
+  }
+  #clock-modal.open { display: flex; }
+  .clock-box {
+    background: var(--bg2); border: 1px solid var(--card-border);
+    border-radius: 20px; padding: 24px; width: 300px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.6);
+    animation: popIn .2s cubic-bezier(.34,1.56,.64,1);
+  }
+  @keyframes popIn { from{transform:scale(.85);opacity:0} to{transform:scale(1);opacity:1} }
+
+  .clock-display {
+    display: flex; align-items: center; justify-content: center;
+    gap: 4px; margin-bottom: 20px;
+  }
+  .clock-disp-part {
+    font-size: 42px; font-weight: 800; padding: 8px 16px;
+    border-radius: 12px; cursor: pointer; transition: all .15s; line-height: 1;
+  }
+  .clock-disp-part.dim { color: var(--text2); background: rgba(255,255,255,.04); }
+  .clock-disp-part.bright { color: #fff; background: var(--accent); }
+  .clock-disp-part.error { animation: clockShake .35s ease; background: rgba(255,80,80,.25); color: #ff6b6b; }
+  @keyframes clockShake {
+    0%,100%{ transform:translateX(0) }
+    20%    { transform:translateX(-6px) }
+    40%    { transform:translateX(6px) }
+    60%    { transform:translateX(-4px) }
+    80%    { transform:translateX(4px) }
+  }
+  .clock-disp-sep { font-size: 42px; font-weight: 800; color: var(--text2); }
+
+  .clock-face {
+    position: relative; width: 232px; height: 232px;
+    background: rgba(255,255,255,.04); border-radius: 50%;
+    margin: 0 auto 20px; user-select: none;
+  }
+  .clock-center {
+    position: absolute; top: 50%; left: 50%;
+    width: 8px; height: 8px; background: var(--accent);
+    border-radius: 50%; transform: translate(-50%,-50%); z-index: 3;
+  }
+  .clock-hand {
+    position: absolute; bottom: 50%; left: 50%;
+    transform-origin: bottom center;
+    width: 2px; background: var(--accent);
+    border-radius: 2px; z-index: 2;
+    transition: none;
+    margin-left: -1px;
+  }
+  /* no tip dot — selected number already shows the circle */
+  .clock-num {
+    position: absolute; width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 600; border-radius: 50%;
+    cursor: pointer; transform: translate(-50%,-50%);
+    transition: background .15s, color .15s; color: var(--text);
+    z-index: 4;
+  }
+  .clock-num:hover { background: rgba(124,106,255,.3); }
+  .clock-num.selected { background: var(--accent); color: #fff !important; }
+  .clock-num.inner { font-size: 12px; color: var(--text2); }
+  .clock-num.inner.selected { color: #fff !important; }
+
+  .clock-actions {
+    display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px;
+  }
+  .clock-label {
+    text-align: center; font-size: 11px; font-weight: 700;
+    color: var(--text2); text-transform: uppercase; letter-spacing: .5px;
+    margin-bottom: 8px;
+  }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width:4px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:rgba(255,255,255,.1); border-radius:2px; }
+
+  /* TOAST */
+  #toast {
+    position:fixed; bottom:100px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--bg3); border:1px solid var(--card-border); border-radius:var(--radius-sm);
+    padding:10px 18px; font-size:13px; font-weight:500; z-index:9000; opacity:0;
+    transition:all .3s; pointer-events:none; max-width:300px; text-align:center;
+  }
+  #toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+  .divider { height:1px; background:var(--card-border); margin:4px 0; }
+
+  .tag { display:inline-block; padding:2px 8px; border-radius:20px; font-size:10px; font-weight:600; }
+  .tag-cat { background:rgba(124,106,255,.15); color:var(--accent); border:1px solid rgba(124,106,255,.2); }
+
+  .map-controls {
+    position:absolute; top:12px; right:12px; z-index:400; display:flex; flex-direction:column; gap:6px;
+  }
+  .map-btn {
+    background:var(--bg2); border:1px solid var(--card-border); border-radius:var(--radius-sm);
+    padding:8px 12px; color:var(--text); font-size:12px; font-weight:600; cursor:pointer;
+    font-family:inherit; transition:all .2s; white-space:nowrap;
+  }
+  .map-btn:hover { border-color:var(--accent); }
+
+  #no-route-msg {
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    text-align:center; color:var(--text2); z-index:300; pointer-events:none;
+  }
+  #no-route-msg .nr-icon { font-size:48px; margin-bottom:12px; }
+  #no-route-msg h3 { font-size:18px; font-weight:700; color:var(--text); margin-bottom:6px; }
+  #no-route-msg p { font-size:13px; line-height:1.6; }
+</style>
+</head>
+<body>
+
+<!-- LOADING OVERLAY -->
+<div id="loading-overlay">
+  <div class="loader-ring"></div>
+  <div id="loading-text">Chargement des données…</div>
+  <div id="loading-progress"><div id="loading-bar"></div></div>
+</div>
+
+<!-- CLOCK MODAL -->
+<div id="clock-modal">
+  <div class="clock-box">
+    <div class="clock-display">
+      <div class="clock-disp-part" id="clk-h-disp" onclick="clockSwitchMode('h')">00</div>
+      <div class="clock-disp-sep">:</div>
+      <div class="clock-disp-part" id="clk-m-disp" onclick="clockSwitchMode('m')">00</div>
+    </div>
+    <div class="clock-label" id="clk-label">HEURES</div>
+    <div class="clock-face" id="clock-face">
+      <div class="clock-center"></div>
+      <div class="clock-hand" id="clock-hand"></div>
+    </div>
+    <div class="clock-actions">
+      <button class="btn btn-outline btn-sm" style="width:auto" onclick="closeClockModal()">Annuler</button>
+      <button class="btn btn-primary btn-sm" style="width:auto" onclick="confirmClock()">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- RDV MODAL -->
+<div id="rdv-modal">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeRdvModal()">✕</button>
+    <div class="modal-title">📅 Ajouter un RDV</div>
+    <div class="field">
+      <label>Heure du RDV</label>
+      <div class="time-picker" id="rdv-time"></div>
+    </div>
+    <div class="field">
+      <label>Description (optionnel)</label>
+      <input type="text" id="rdv-desc" placeholder="ex: RDV client Dupont">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:4px;">
+      <button class="btn btn-outline btn-sm" style="width:auto;flex:1" onclick="closeRdvModal()">Annuler</button>
+      <button class="btn btn-primary btn-sm" style="width:auto;flex:1" onclick="confirmRdv()">Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">🚗</div>
+    <div>
+      <div class="logo-text">RouteAuto Pro</div>
+      <div class="logo-sub">Tournée commerciale intelligente</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <span id="tour-badge" class="badge" style="display:none"></span>
+    <span id="clock">--:--</span>
+  </div>
+</header>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-tabs">
+      <button class="tab-btn active" onclick="switchTab('plan')">🗺 Planifier</button>
+      <button class="tab-btn" onclick="switchTab('route')">📍 Tournée</button>
+      <button class="tab-btn" onclick="switchTab('stats')">📊 Stats</button>
+    </div>
+
+    <!-- TAB: PLANIFIER -->
+    <div class="tab-content active" id="tab-plan">
+      <!-- DÉPARTEMENT -->
+      <div class="card" id="dept-card">
+        <div class="card-title"><span>📌</span> Mon département</div>
+        <div style="display:flex;gap:8px;align-items:flex-end;">
+          <div class="field" style="flex:1;margin:0;">
+            <label>Numéro de département</label>
+            <input type="text" id="dept-input" placeholder="71" maxlength="3"
+              style="font-size:26px;font-weight:800;text-align:center;color:var(--accent);padding:10px;"
+              oninput="onDeptInput(this.value)">
+          </div>
+          <div id="dept-info" style="flex:2;padding-bottom:1px;">
+            <div id="dept-name" style="font-size:13px;font-weight:600;color:var(--text2);">—</div>
+            <div id="dept-region" style="font-size:11px;color:var(--text3);"></div>
+          </div>
+        </div>
+        <div id="dept-status" style="display:none;margin-top:8px;font-size:11px;color:var(--accent2);">
+          ✅ Département chargé — suggestions géolocalisées
+        </div>
+      </div>
+
+      <!-- TRAFIC RÉEL GOOGLE MAPS -->
+      <div class="card" id="traffic-card">
+        <div class="card-title"><span>🚦</span> Trafic Google Maps</div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:10px;line-height:1.7;">
+          Temps de trajet réels avec bouchons selon l'heure (même moteur que Maps/Waze).<br>
+          <a href="https://console.cloud.google.com/apis/library/distance-matrix-backend.googleapis.com" target="_blank" style="color:var(--accent);font-weight:600;">Activer l'API ici</a>
+          — <span style="color:var(--text3);">~200$/mois offerts ≈ 40 000 trajets gratuits</span>
+        </div>
+        <div class="field" style="margin-bottom:8px;">
+          <input type="text" id="gmaps-key" placeholder="Clé API Google Maps… (obligatoire)"
+            style="font-size:12px;letter-spacing:.5px;"
+            oninput="saveGmapsKey(this.value)">
+        </div>
+        <div id="traffic-status" style="font-size:11px;color:#ff6b6b;">
+          🔴 Clé requise pour calculer la tournée
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span>🏠</span> Dépôt de départ</div>
+        <div class="field" style="position:relative;">
+          <label>Adresse de votre dépôt</label>
+          <div style="position:relative;">
+            <input type="text" id="depot-addr" placeholder="Commencez à taper votre adresse…" autocomplete="off"
+              oninput="onDepotInput(this.value)" onkeydown="onDepotKeydown(event)">
+            <div id="depot-spinner" style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:14px;">⏳</div>
+          </div>
+          <div id="depot-suggestions" style="
+            display:none; position:fixed;
+            background:#1a1d28; border:1px solid rgba(124,106,255,.4);
+            border-radius:var(--radius-sm); overflow:hidden; z-index:2000;
+            box-shadow:0 8px 24px rgba(0,0,0,.6); min-width:300px;
+          "></div>
+        </div>
+        <div id="depot-confirmed" style="display:none;font-size:11px;color:var(--accent2);margin-top:4px;">✅ Dépôt localisé</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span>🔍</span> Sélectionner un secteur</div>
+        <div class="field">
+          <label>Ville / Zone</label>
+          <select id="sector-select">
+            <option value="">— Choisir une ville —</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Rayon autour de la ville (km)</label>
+          <input type="range" id="radius-km" min="5" max="80" value="25" oninput="document.getElementById('radius-val').textContent=this.value+'km'">
+          <div style="display:flex;justify-content:space-between;margin-top:3px;">
+            <span style="font-size:11px;color:var(--text2)">5 km</span>
+            <span style="font-size:12px;font-weight:600;color:var(--accent)" id="radius-val">25km</span>
+            <span style="font-size:11px;color:var(--text2)">80 km</span>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="loadSector()">🔍 Charger le secteur</button>
+      </div>
+
+      <div class="card" id="garage-count-card" style="display:none">
+        <div class="card-title"><span>🏭</span> Garages trouvés</div>
+        <div class="stats-row">
+          <div class="stat-box"><div class="stat-val" id="st-total">0</div><div class="stat-lbl">Total</div></div>
+          <div class="stat-box"><div class="stat-val" id="st-unvisited">0</div><div class="stat-lbl">Non visités</div></div>
+          <div class="stat-box"><div class="stat-val" id="st-visits">0</div><div class="stat-lbl">Visites/jour</div></div>
+          <div class="stat-box"><div class="stat-val" id="st-days">0</div><div class="stat-lbl">Jours restants</div></div>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <span id="visited-history-label" style="font-size:11px;color:var(--text3);flex:1"></span>
+          <button class="btn btn-outline btn-sm" style="width:auto;font-size:11px;" onclick="resetVisitedGarages()">🔄 Remettre à zéro</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span>⚙️</span> Paramètres tournée</div>
+        <div class="field">
+          <label>Durée par visite (min)</label>
+          <div class="duration-grid" id="visit-duration">
+            <button class="dur-btn" data-v="5"  onclick="selectDuration(5)">5<span>min</span></button>
+            <button class="dur-btn" data-v="10" onclick="selectDuration(10)">10<span>min</span></button>
+            <button class="dur-btn" data-v="15" onclick="selectDuration(15)">15<span>min</span></button>
+            <button class="dur-btn" data-v="20" onclick="selectDuration(20)">20<span>min</span></button>
+            <button class="dur-btn" data-v="25" onclick="selectDuration(25)">25<span>min</span></button>
+            <button class="dur-btn active" data-v="30" onclick="selectDuration(30)">30<span>min</span></button>
+            <button class="dur-btn" data-v="35" onclick="selectDuration(35)">35<span>min</span></button>
+            <button class="dur-btn" data-v="40" onclick="selectDuration(40)">40<span>min</span></button>
+          </div>
+        </div>
+        <div class="field">
+          <label>Heure de début</label>
+          <div class="time-picker" id="start-time"></div>
+        </div>
+        <div class="field">
+          <label>Heure de fin</label>
+          <div class="time-picker" id="end-time"></div>
+        </div>
+        <div class="field">
+          <label>Pause déjeuner — début</label>
+          <div class="time-picker" id="lunch-start"></div>
+        </div>
+        <div class="field">
+          <label>Pause déjeuner — fin</label>
+          <div class="time-picker" id="lunch-end"></div>
+        </div>
+      </div>
+
+      <button class="btn btn-success" id="btn-optimize" onclick="optimizeRoute()" disabled>
+        ⚡ Optimiser la tournée
+      </button>
+    </div>
+
+    <!-- TAB: TOURNÉE -->
+    <div class="tab-content" id="tab-route" style="padding-top:8px;">
+      <div id="active-banner">
+        <div class="banner-label">📍 Arrêt actuel</div>
+        <div class="banner-name" id="banner-name">—</div>
+        <div class="banner-addr" id="banner-addr">—</div>
+        <div class="banner-btns">
+          <button class="btn btn-success btn-sm" style="flex:1" onclick="markVisited()">✅ Visité</button>
+          <button class="btn btn-outline btn-sm" style="flex:1;width:auto" onclick="openRdvModal()">📅 RDV</button>
+          <button class="btn btn-outline btn-sm" style="flex:1;width:auto" onclick="skipStop()">⏭ Skip</button>
+        </div>
+      </div>
+      <div id="route-list" style="padding:0 16px 16px;flex:1;overflow-y:auto;">
+        <div style="text-align:center;color:var(--text2);padding:40px 0;font-size:13px;">
+          Optimisez d'abord la tournée<br>dans l'onglet Planifier
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: STATS -->
+    <div class="tab-content" id="tab-stats">
+      <div class="card">
+        <div class="card-title"><span>📈</span> Journée en cours</div>
+        <div class="stats-row" style="margin-bottom:10px">
+          <div class="stat-box"><div class="stat-val" id="st-visited">0</div><div class="stat-lbl">Visités</div></div>
+          <div class="stat-box"><div class="stat-val" id="st-remaining">0</div><div class="stat-lbl">Restants</div></div>
+          <div class="stat-box"><div class="stat-val" id="st-rdvs">0</div><div class="stat-lbl">RDV</div></div>
+        </div>
+        <div id="progress-bar-wrap" style="height:6px;background:rgba(255,255,255,.1);border-radius:3px;overflow:hidden;">
+          <div id="progress-bar" style="height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));width:0%;transition:width .5s;"></div>
+        </div>
+        <div style="font-size:11px;color:var(--text2);margin-top:6px;text-align:right;" id="progress-label">0% complété</div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span>⏱</span> Temps</div>
+        <div id="time-stats" style="font-size:13px;color:var(--text2);line-height:2;">
+          <div>⏰ Heure de fin estimée : <strong id="est-end">—</strong></div>
+          <div>🚗 Distance totale : <strong id="est-dist">—</strong></div>
+          <div>⏳ Temps de trajet : <strong id="est-travel">—</strong></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span>📋</span> Log des visites</div>
+        <div id="visit-log" style="font-size:12px;color:var(--text2);max-height:200px;overflow-y:auto;">
+          <div style="color:var(--text3);font-style:italic;">Aucune visite enregistrée</div>
+        </div>
+      </div>
+      <button class="btn btn-danger btn-sm" onclick="resetTour()" style="margin-top:4px;">🔄 Réinitialiser la tournée</button>
+    </div>
+  </div>
+
+  <!-- MAP -->
+  <div id="map">
+    <div id="no-route-msg">
+      <div class="nr-icon">🗺</div>
+      <h3>Prêt à optimiser</h3>
+      <p>Sélectionnez un secteur et votre<br>adresse de dépôt, puis lancez<br>l'optimisation de tournée.</p>
+    </div>
+    <div class="map-controls">
+      <button class="map-btn" onclick="centerMap()">🎯 Recentrer</button>
+      <button class="map-btn" onclick="toggleLabels()">🏷 Labels</button>
+    </div>
+  </div>
+</div>
+
+<!-- AI FAB + PANEL -->
+<button id="ai-fab" onclick="toggleAI()">🎙</button>
+<div id="ai-panel">
+  <div class="ai-header">
+    <div class="ai-avatar">🎙</div>
+    <div style="flex:1">
+      <div class="ai-name">Assistant vocal</div>
+      <div class="ai-status" id="ai-status-line">● Prêt</div>
+    </div>
+    <button id="ai-mic-btn" onclick="startVoiceInput()" title="Parler" style="background:rgba(124,106,255,.2);border:none;border-radius:50%;width:38px;height:38px;font-size:18px;cursor:pointer;color:#fff;transition:all .2s;">🎤</button>
+  </div>
+  <div class="ai-messages" id="ai-msgs">
+    <div class="msg bot">
+      Bonjour ! Appuyez sur 🎤 ou tapez pour me parler. 👋<br><br>
+      Vous pouvez dire :<br>
+      • <em>"Prochain arrêt"</em><br>
+      • <em>"Lance Waze"</em><br>
+      • <em>"Rapport : client sympa, intéressé par l'offre…"</em><br>
+      • <em>"J'ai un rdv à 10h30"</em><br>
+      • <em>"Visité"</em>
+    </div>
+  </div>
+  <div class="quick-actions" style="padding:0 12px;">
+    <button class="qa-btn" onclick="sendAI('Prochain arrêt')">📍 Suivant</button>
+    <button class="qa-btn" onclick="sendAI('Lance Waze')">🗺 Waze</button>
+    <button class="qa-btn" onclick="sendAI('Visité')">✅ Visité</button>
+    <button class="qa-btn" onclick="sendAI('Rdv terminé')">📅 RDV fini</button>
+  </div>
+  <div class="ai-input-row">
+    <input class="ai-input" id="ai-input" placeholder="Parlez ou tapez…" onkeydown="if(event.key==='Enter')sendAI()">
+    <button class="ai-send" onclick="startVoiceInput()" id="ai-send-mic" title="Micro">🎤</button>
+  </div>
+</div>
+
+<script>
+const DEPT_INFO = {
+  "01":{"nom":"Ain","region":"Auvergne-Rhône-Alpes","lat":46.07,"lng":5.34},
+  "02":{"nom":"Aisne","region":"Hauts-de-France","lat":49.57,"lng":3.62},
+  "03":{"nom":"Allier","region":"Auvergne-Rhône-Alpes","lat":46.34,"lng":3.21},
+  "04":{"nom":"Alpes-de-Haute-Provence","region":"PACA","lat":44.08,"lng":6.24},
+  "05":{"nom":"Hautes-Alpes","region":"PACA","lat":44.66,"lng":6.45},
+  "06":{"nom":"Alpes-Maritimes","region":"PACA","lat":43.93,"lng":7.12},
+  "07":{"nom":"Ardèche","region":"Auvergne-Rhône-Alpes","lat":44.75,"lng":4.44},
+  "08":{"nom":"Ardennes","region":"Grand Est","lat":49.70,"lng":4.70},
+  "09":{"nom":"Ariège","region":"Occitanie","lat":42.96,"lng":1.60},
+  "10":{"nom":"Aube","region":"Grand Est","lat":48.32,"lng":4.08},
+  "11":{"nom":"Aude","region":"Occitanie","lat":43.10,"lng":2.40},
+  "12":{"nom":"Aveyron","region":"Occitanie","lat":44.35,"lng":2.57},
+  "13":{"nom":"Bouches-du-Rhône","region":"PACA","lat":43.53,"lng":5.44},
+  "14":{"nom":"Calvados","region":"Normandie","lat":49.09,"lng":-0.35},
+  "15":{"nom":"Cantal","region":"Auvergne-Rhône-Alpes","lat":45.04,"lng":2.62},
+  "16":{"nom":"Charente","region":"Nouvelle-Aquitaine","lat":45.66,"lng":0.16},
+  "17":{"nom":"Charente-Maritime","region":"Nouvelle-Aquitaine","lat":45.75,"lng":-0.68},
+  "18":{"nom":"Cher","region":"Centre-Val de Loire","lat":47.06,"lng":2.40},
+  "19":{"nom":"Corrèze","region":"Nouvelle-Aquitaine","lat":45.34,"lng":1.88},
+  "2A":{"nom":"Corse-du-Sud","region":"Corse","lat":41.86,"lng":9.01},
+  "2B":{"nom":"Haute-Corse","region":"Corse","lat":42.40,"lng":9.20},
+  "21":{"nom":"Côte-d'Or","region":"Bourgogne-Franche-Comté","lat":47.42,"lng":4.83},
+  "22":{"nom":"Côtes-d'Armor","region":"Bretagne","lat":48.46,"lng":-2.90},
+  "23":{"nom":"Creuse","region":"Nouvelle-Aquitaine","lat":45.99,"lng":2.03},
+  "24":{"nom":"Dordogne","region":"Nouvelle-Aquitaine","lat":45.11,"lng":0.75},
+  "25":{"nom":"Doubs","region":"Bourgogne-Franche-Comté","lat":47.12,"lng":6.39},
+  "26":{"nom":"Drôme","region":"Auvergne-Rhône-Alpes","lat":44.73,"lng":5.20},
+  "27":{"nom":"Eure","region":"Normandie","lat":49.07,"lng":1.15},
+  "28":{"nom":"Eure-et-Loir","region":"Centre-Val de Loire","lat":48.44,"lng":1.37},
+  "29":{"nom":"Finistère","region":"Bretagne","lat":48.23,"lng":-4.06},
+  "30":{"nom":"Gard","region":"Occitanie","lat":43.95,"lng":4.17},
+  "31":{"nom":"Haute-Garonne","region":"Occitanie","lat":43.36,"lng":1.33},
+  "32":{"nom":"Gers","region":"Occitanie","lat":43.70,"lng":0.58},
+  "33":{"nom":"Gironde","region":"Nouvelle-Aquitaine","lat":44.89,"lng":-0.54},
+  "34":{"nom":"Hérault","region":"Occitanie","lat":43.61,"lng":3.39},
+  "35":{"nom":"Ille-et-Vilaine","region":"Bretagne","lat":48.15,"lng":-1.68},
+  "36":{"nom":"Indre","region":"Centre-Val de Loire","lat":46.70,"lng":1.57},
+  "37":{"nom":"Indre-et-Loire","region":"Centre-Val de Loire","lat":47.25,"lng":0.69},
+  "38":{"nom":"Isère","region":"Auvergne-Rhône-Alpes","lat":45.26,"lng":5.57},
+  "39":{"nom":"Jura","region":"Bourgogne-Franche-Comté","lat":46.68,"lng":5.56},
+  "40":{"nom":"Landes","region":"Nouvelle-Aquitaine","lat":43.93,"lng":-0.75},
+  "41":{"nom":"Loir-et-Cher","region":"Centre-Val de Loire","lat":47.59,"lng":1.33},
+  "42":{"nom":"Loire","region":"Auvergne-Rhône-Alpes","lat":45.75,"lng":4.14},
+  "43":{"nom":"Haute-Loire","region":"Auvergne-Rhône-Alpes","lat":45.08,"lng":3.89},
+  "44":{"nom":"Loire-Atlantique","region":"Pays de la Loire","lat":47.35,"lng":-1.68},
+  "45":{"nom":"Loiret","region":"Centre-Val de Loire","lat":47.91,"lng":2.31},
+  "46":{"nom":"Lot","region":"Occitanie","lat":44.62,"lng":1.68},
+  "47":{"nom":"Lot-et-Garonne","region":"Nouvelle-Aquitaine","lat":44.35,"lng":0.46},
+  "48":{"nom":"Lozère","region":"Occitanie","lat":44.52,"lng":3.50},
+  "49":{"nom":"Maine-et-Loire","region":"Pays de la Loire","lat":47.39,"lng":-0.55},
+  "50":{"nom":"Manche","region":"Normandie","lat":49.08,"lng":-1.33},
+  "51":{"nom":"Marne","region":"Grand Est","lat":48.96,"lng":4.36},
+  "52":{"nom":"Haute-Marne","region":"Grand Est","lat":48.11,"lng":5.14},
+  "53":{"nom":"Mayenne","region":"Pays de la Loire","lat":48.16,"lng":-0.60},
+  "54":{"nom":"Meurthe-et-Moselle","region":"Grand Est","lat":48.69,"lng":6.18},
+  "55":{"nom":"Meuse","region":"Grand Est","lat":48.99,"lng":5.35},
+  "56":{"nom":"Morbihan","region":"Bretagne","lat":47.82,"lng":-2.76},
+  "57":{"nom":"Moselle","region":"Grand Est","lat":49.02,"lng":6.57},
+  "58":{"nom":"Nièvre","region":"Bourgogne-Franche-Comté","lat":47.11,"lng":3.50},
+  "59":{"nom":"Nord","region":"Hauts-de-France","lat":50.52,"lng":3.16},
+  "60":{"nom":"Oise","region":"Hauts-de-France","lat":49.41,"lng":2.41},
+  "61":{"nom":"Orne","region":"Normandie","lat":48.61,"lng":0.09},
+  "62":{"nom":"Pas-de-Calais","region":"Hauts-de-France","lat":50.51,"lng":2.14},
+  "63":{"nom":"Puy-de-Dôme","region":"Auvergne-Rhône-Alpes","lat":45.77,"lng":3.08},
+  "64":{"nom":"Pyrénées-Atlantiques","region":"Nouvelle-Aquitaine","lat":43.29,"lng":-0.76},
+  "65":{"nom":"Hautes-Pyrénées","region":"Occitanie","lat":43.05,"lng":0.15},
+  "66":{"nom":"Pyrénées-Orientales","region":"Occitanie","lat":42.61,"lng":2.46},
+  "67":{"nom":"Bas-Rhin","region":"Grand Est","lat":48.58,"lng":7.45},
+  "68":{"nom":"Haut-Rhin","region":"Grand Est","lat":47.89,"lng":7.34},
+  "69":{"nom":"Rhône","region":"Auvergne-Rhône-Alpes","lat":45.76,"lng":4.84},
+  "70":{"nom":"Haute-Saône","region":"Bourgogne-Franche-Comté","lat":47.63,"lng":6.08},
+  "71":{"nom":"Saône-et-Loire","region":"Bourgogne-Franche-Comté","lat":46.65,"lng":4.85},
+  "72":{"nom":"Sarthe","region":"Pays de la Loire","lat":47.99,"lng":0.19},
+  "73":{"nom":"Savoie","region":"Auvergne-Rhône-Alpes","lat":45.49,"lng":6.43},
+  "74":{"nom":"Haute-Savoie","region":"Auvergne-Rhône-Alpes","lat":46.03,"lng":6.39},
+  "75":{"nom":"Paris","region":"Île-de-France","lat":48.86,"lng":2.35},
+  "76":{"nom":"Seine-Maritime","region":"Normandie","lat":49.67,"lng":1.07},
+  "77":{"nom":"Seine-et-Marne","region":"Île-de-France","lat":48.62,"lng":2.96},
+  "78":{"nom":"Yvelines","region":"Île-de-France","lat":48.78,"lng":1.84},
+  "79":{"nom":"Deux-Sèvres","region":"Nouvelle-Aquitaine","lat":46.55,"lng":-0.33},
+  "80":{"nom":"Somme","region":"Hauts-de-France","lat":49.97,"lng":2.30},
+  "81":{"nom":"Tarn","region":"Occitanie","lat":43.75,"lng":2.13},
+  "82":{"nom":"Tarn-et-Garonne","region":"Occitanie","lat":44.08,"lng":1.34},
+  "83":{"nom":"Var","region":"PACA","lat":43.46,"lng":6.24},
+  "84":{"nom":"Vaucluse","region":"PACA","lat":44.06,"lng":5.15},
+  "85":{"nom":"Vendée","region":"Pays de la Loire","lat":46.67,"lng":-1.43},
+  "86":{"nom":"Vienne","region":"Nouvelle-Aquitaine","lat":46.57,"lng":0.34},
+  "87":{"nom":"Haute-Vienne","region":"Nouvelle-Aquitaine","lat":45.84,"lng":1.26},
+  "88":{"nom":"Vosges","region":"Grand Est","lat":48.17,"lng":6.43},
+  "89":{"nom":"Yonne","region":"Bourgogne-Franche-Comté","lat":47.80,"lng":3.56},
+  "90":{"nom":"Territoire de Belfort","region":"Bourgogne-Franche-Comté","lat":47.63,"lng":6.86},
+  "91":{"nom":"Essonne","region":"Île-de-France","lat":48.53,"lng":2.16},
+  "92":{"nom":"Hauts-de-Seine","region":"Île-de-France","lat":48.83,"lng":2.22},
+  "93":{"nom":"Seine-Saint-Denis","region":"Île-de-France","lat":48.92,"lng":2.49},
+  "94":{"nom":"Val-de-Marne","region":"Île-de-France","lat":48.78,"lng":2.47},
+  "95":{"nom":"Val-d'Oise","region":"Île-de-France","lat":49.08,"lng":2.12},
+  "971":{"nom":"Guadeloupe","region":"DOM","lat":16.25,"lng":-61.58},
+  "972":{"nom":"Martinique","region":"DOM","lat":14.64,"lng":-61.02},
+  "973":{"nom":"Guyane","region":"DOM","lat":3.93,"lng":-53.13},
+  "974":{"nom":"La Réunion","region":"DOM","lat":-21.12,"lng":55.54},
+  "976":{"nom":"Mayotte","region":"DOM","lat":-12.83,"lng":45.17}
+};
+</script>
+<script src="city_coords.js"></script>
+<script src="data.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════
+let map, depotMarker, routeLayer, stopMarkers = [];
+let depot = null;
+let sectorGarages = [];
+let route = [];
+let currentStopIdx = 0;
+let tourStarted = false;
+
+// ── VISITED GARAGES PERSISTENCE ──────────────────────────────────
+// Format : { "title|city": "2026-05-30" }
+function loadVisitedDB() {
+  try { return JSON.parse(localStorage.getItem('visited_garages_v1') || '{}'); }
+  catch(e) { return {}; }
+}
+function saveVisitedDB(db) {
+  localStorage.setItem('visited_garages_v1', JSON.stringify(db));
+}
+function garageKey(g) { return `${g.title}|${g.city}`; }
+
+function persistVisit(g) {
+  const db = loadVisitedDB();
+  db[garageKey(g)] = new Date().toISOString().slice(0,10); // "YYYY-MM-DD"
+  saveVisitedDB(db);
+}
+
+function isGarageVisited(g, db) {
+  return !!db[garageKey(g)];
+}
+
+function resetVisitedGarages() {
+  if (!confirm('Remettre à zéro l\'historique des visites ? Tous les garages redeviendront "non visités".')) return;
+  localStorage.removeItem('visited_garages_v1');
+  toast('🔄 Historique des visites remis à zéro');
+  if (sectorGarages.length > 0) loadSector(); // reload pour recalculer
+}
+
+function getVisitedCount(garages) {
+  const db = loadVisitedDB();
+  return garages.filter(g => isGarageVisited(g, db)).length;
+}
+let visitLog = [];
+let showLabels = true;
+let geocodeCache = {};
+let deptCenter = null;      // {lat, lng} of selected department
+let deptCode = null;        // e.g. "71"
+
+// ═══════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  initMap();
+  populateCities();
+  startClock();
+  loadCacheFromStorage();
+  buildTimePicker('start-time',  '08', '00', 0, 23);
+  buildTimePicker('end-time',    '19', '00', 0, 23);
+  buildTimePicker('lunch-start', '12', '30', 0, 23);
+  buildTimePicker('lunch-end',   '13', '30', 0, 23);
+  buildTimePicker('rdv-time',    '10', '00', 0, 23);
+  // Restore Google Maps key
+  const savedKey = localStorage.getItem('gmaps_key') || '';
+  if (savedKey) {
+    document.getElementById('gmaps-key').value = savedKey;
+    saveGmapsKey(savedKey);
+  }
+});
+
+// ── TIME PICKER HELPERS ──────────────────────────────────────────
+function buildTimePicker(id, defH, defM, minH = 0, maxH = 23) {
+  const wrap = document.getElementById(id);
+  if (!wrap) return;
+  wrap.dataset.h = defH;
+  wrap.dataset.m = defM;
+  wrap.dataset.minH = minH;
+  wrap.dataset.maxH = maxH;
+
+  const hPart = document.createElement('div');
+  hPart.className = 'tp-part';
+  hPart.textContent = defH;
+  hPart.onclick = () => openClockModal(id, 'h');
+
+  const sep = document.createElement('div');
+  sep.className = 'tp-sep-disp';
+  sep.textContent = ':';
+
+  const mPart = document.createElement('div');
+  mPart.className = 'tp-part';
+  mPart.textContent = defM;
+  mPart.onclick = () => openClockModal(id, 'm');
+
+  wrap.appendChild(hPart);
+  wrap.appendChild(sep);
+  wrap.appendChild(mPart);
+}
+
+function getTimePicker(id) {
+  const wrap = document.getElementById(id);
+  if (!wrap) return '00:00';
+  return `${wrap.dataset.h || '00'}:${wrap.dataset.m || '00'}`;
+}
+
+function setTimePicker(id, h, m) {
+  const wrap = document.getElementById(id);
+  if (!wrap) return;
+  wrap.dataset.h = String(h).padStart(2,'0');
+  wrap.dataset.m = String(m).padStart(2,'0');
+  const parts = wrap.querySelectorAll('.tp-part');
+  if (parts[0]) parts[0].textContent = wrap.dataset.h;
+  if (parts[1]) parts[1].textContent = wrap.dataset.m;
+}
+
+// ── CLOCK MODAL ──────────────────────────────────────────────────
+let clockTargetId = null;
+let clockMode = 'h';   // 'h' or 'm'
+let clockH = 8, clockM = 0;
+let clockMinH = 0, clockMaxH = 23;
+
+function openClockModal(id, startMode = 'h') {
+  clockTargetId = id;
+  clockMode = startMode;
+  clockKeyBuf = '';
+  const wrap = document.getElementById(id);
+  clockH = parseInt(wrap.dataset.h || '8');
+  clockM = parseInt(wrap.dataset.m || '0');
+  clockMinH = parseInt(wrap.dataset.minH || '0');
+  clockMaxH = parseInt(wrap.dataset.maxH || '23');
+  document.getElementById('clock-modal').classList.add('open');
+  renderClock();
+}
+
+function closeClockModal() {
+  document.getElementById('clock-modal').classList.remove('open');
+  clockTargetId = null;
+  clockKeyBuf = '';
+}
+
+function confirmClock() {
+  if (clockTargetId) setTimePicker(clockTargetId, clockH, clockM);
+  closeClockModal();
+}
+
+function clockSwitchMode(mode) {
+  clockMode = mode;
+  renderClock();
+}
+
+function renderClock() {
+  const face = document.getElementById('clock-face');
+  const hand = document.getElementById('clock-hand');
+  const label = document.getElementById('clk-label');
+  const hDisp = document.getElementById('clk-h-disp');
+  const mDisp = document.getElementById('clk-m-disp');
+  const R = 116; // face radius
+
+  // Update display
+  hDisp.textContent = String(clockH).padStart(2,'0');
+  mDisp.textContent = String(clockM).padStart(2,'0');
+  hDisp.className = 'clock-disp-part ' + (clockMode === 'h' ? 'bright' : 'dim');
+  mDisp.className = 'clock-disp-part ' + (clockMode === 'm' ? 'bright' : 'dim');
+
+  // Remove old numbers
+  face.querySelectorAll('.clock-num').forEach(n => n.remove());
+
+  if (clockMode === 'h') {
+    label.textContent = 'HEURES';
+    // Outer ring: 1–12, Inner ring: 13–23 + 0
+    const outerNums = [12,1,2,3,4,5,6,7,8,9,10,11];
+    const innerNums = [0,13,14,15,16,17,18,19,20,21,22,23];
+
+    outerNums.forEach((n, i) => {
+      const angle = (i / 12) * 2 * Math.PI - Math.PI / 2;
+      const r = R * 0.76;
+      addClockNum(face, n, R + r * Math.cos(angle), R + r * Math.sin(angle), false, clockH === n);
+    });
+    innerNums.forEach((n, i) => {
+      const angle = (i / 12) * 2 * Math.PI - Math.PI / 2;
+      const r = R * 0.46;
+      addClockNum(face, n, R + r * Math.cos(angle), R + r * Math.sin(angle), true, clockH === n);
+    });
+
+    // Hand position
+    const isInner = clockH === 0 || clockH >= 13;
+    const hNorm = clockH === 0 ? 0 : (clockH > 12 ? clockH - 12 : clockH);
+    const angle = (hNorm / 12) * 360 - 90;
+    const len = isInner ? R * 0.46 : R * 0.76;
+    hand.style.height = len + 'px';
+    hand.style.transform = `rotate(${angle + 90}deg)`;
+
+  } else {
+    label.textContent = 'MINUTES';
+    for (let i = 0; i < 12; i++) {
+      const n = i * 5;
+      const angle = (i / 12) * 2 * Math.PI - Math.PI / 2;
+      const r = R * 0.76;
+      addClockNum(face, n, R + r * Math.cos(angle), R + r * Math.sin(angle), false, clockM === n);
+    }
+    const angle = (clockM / 60) * 360 - 90;
+    hand.style.height = (R * 0.76) + 'px';
+    hand.style.transform = `rotate(${angle + 90}deg)`;
+  }
+}
+
+function addClockNum(face, value, x, y, inner, selected) {
+  const el = document.createElement('div');
+  el.className = 'clock-num' + (inner ? ' inner' : '') + (selected ? ' selected' : '');
+  el.textContent = String(value).padStart(2, '0');
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+  el.onclick = (e) => { e.stopPropagation(); onClockNumClick(value); };
+  face.appendChild(el);
+}
+
+function onClockNumClick(value) {
+  clockKeyBuf = '';
+  if (clockMode === 'h') {
+    if (value < clockMinH || value > clockMaxH) return;
+    clockH = value;
+    renderClock();
+    setTimeout(() => { clockMode = 'm'; renderClock(); }, 300);
+  } else {
+    clockM = Math.round(value / 5) * 5 % 60;
+    renderClock();
+    setTimeout(() => confirmClock(), 300);
+  }
+}
+
+// ── CLOCK DRAG & CLICK ───────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  const face = document.getElementById('clock-face');
+  let dragging = false;
+
+  function getAngleFromEvent(e) {
+    const rect = face.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const dx = clientX - cx, dy = clientY - cy;
+    const angle = ((Math.atan2(dy, dx) * 180 / Math.PI + 90) % 360 + 360) % 360;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    const R = rect.width / 2;
+    return { angle, dist, R };
+  }
+
+  function applyAngle({ angle, dist, R }, commit) {
+    if (clockMode === 'h') {
+      const raw = Math.round(angle / 30) % 12;
+      let h = dist < R * 0.6 ? (raw === 0 ? 0 : raw + 12) : (raw === 0 ? 12 : raw);
+      if (h >= clockMinH && h <= clockMaxH) { clockH = h; renderClock(); }
+      if (commit) setTimeout(() => { clockMode = 'm'; clockKeyBuf = ''; renderClock(); }, 250);
+    } else {
+      // Minutes snappées aux multiples de 5
+      clockM = Math.round(angle / 30) * 5 % 60;
+      renderClock();
+      if (commit) setTimeout(() => confirmClock(), 250);
+    }
+  }
+
+  // Mouse
+  face.addEventListener('mousedown', e => { dragging = true; applyAngle(getAngleFromEvent(e), false); });
+  document.addEventListener('mousemove', e => { if (dragging) applyAngle(getAngleFromEvent(e), false); });
+  document.addEventListener('mouseup',   e => { if (dragging) { dragging = false; applyAngle(getAngleFromEvent(e), true); } });
+
+  // Touch
+  face.addEventListener('touchstart', e => { e.preventDefault(); dragging = true; applyAngle(getAngleFromEvent(e), false); }, { passive: false });
+  face.addEventListener('touchmove',  e => { e.preventDefault(); if (dragging) applyAngle(getAngleFromEvent(e), false); }, { passive: false });
+  face.addEventListener('touchend',   e => { if (dragging) { dragging = false; applyAngle(getAngleFromEvent(e), true); } });
+
+  // ── Saisie clavier directe ────────────────────────────────────
+  document.addEventListener('keydown', e => {
+    const modal = document.getElementById('clock-modal');
+    if (!modal.classList.contains('open')) return;
+    if (e.key === 'Escape') { closeClockModal(); return; }
+    if (e.key === 'Enter')  { confirmClock(); return; }
+    if (e.key === 'Backspace') {
+      clockKeyBuf = clockKeyBuf.slice(0, -1);
+      refreshClockKeyDisplay();
+      return;
+    }
+    if (!/^[0-9]$/.test(e.key)) return;
+    const digit = e.key;
+    clockKeyBuf += digit;
+
+    if (clockMode === 'h') {
+      refreshClockKeyDisplay();
+      if (clockKeyBuf.length === 2) {
+        let val = parseInt(clockKeyBuf);
+        clockKeyBuf = '';
+        if (val === 24) {
+          // 24 → 00
+          clockH = 0;
+          clockMode = 'm';
+          renderClock();
+        } else if (val >= 25 && val <= 29) {
+          // Impossible : shake + reset
+          clockShakeError('h');
+        } else if (val >= 0 && val <= 23) {
+          clockH = val;
+          clockMode = 'm';
+          renderClock();
+        } else {
+          clockShakeError('h');
+        }
+      } else {
+        // Si le 1er chiffre ne peut former aucun nombre valide à 2 chiffres ≤ 23,
+        // on valide directement (ex: 3 → 03)
+        const d = parseInt(digit);
+        if (d >= 3) {
+          clockKeyBuf = '';
+          if (d >= clockMinH && d <= clockMaxH) {
+            clockH = d;
+            clockMode = 'm';
+            renderClock();
+          }
+        }
+      }
+    } else {
+      // Mode minutes — saisie libre 00-59 au clavier (horloge = multiples de 5 seulement)
+      refreshClockKeyDisplay();
+      if (clockKeyBuf.length === 2) {
+        const val = parseInt(clockKeyBuf);
+        clockKeyBuf = '';
+        if (val >= 0 && val <= 59) {
+          clockM = val; // valeur exacte au clavier
+          renderClock();
+          setTimeout(() => confirmClock(), 300);
+        } else {
+          // 60-99 → impossible
+          clockShakeError('m');
+        }
+      } else {
+        // Premier chiffre ≥ 6 → 60-99 tous invalides → shake immédiat
+        const d = parseInt(digit);
+        if (d >= 6) {
+          clockKeyBuf = '';
+          clockShakeError('m');
+        }
+      }
+    }
+  });
+});
+
+let clockKeyBuf = '';
+
+function refreshClockKeyDisplay() {
+  const hDisp = document.getElementById('clk-h-disp');
+  const mDisp = document.getElementById('clk-m-disp');
+  if (clockMode === 'h') {
+    hDisp.textContent = clockKeyBuf ? clockKeyBuf.padStart(2,'_') : String(clockH).padStart(2,'0');
+  } else {
+    mDisp.textContent = clockKeyBuf ? clockKeyBuf.padStart(2,'_') : String(clockM).padStart(2,'0');
+  }
+}
+
+function clockShakeError(mode) {
+  clockKeyBuf = '';
+  const el = document.getElementById(mode === 'h' ? 'clk-h-disp' : 'clk-m-disp');
+  el.classList.remove('error');
+  // force reflow pour relancer l'animation si déjà en erreur
+  void el.offsetWidth;
+  el.classList.add('error');
+  // remet la bonne classe bright/dim après l'animation
+  setTimeout(() => {
+    el.classList.remove('error');
+    el.className = 'clock-disp-part ' + (clockMode === mode ? 'bright' : 'dim');
+    refreshClockKeyDisplay();
+  }, 400);
+}
+
+function initMap() {
+  map = L.map('map', { zoomControl: false }).setView([46.65, 4.85], 9);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap contributors © CARTO',
+    maxZoom: 19
+  }).addTo(map);
+  L.control.zoom({ position: 'bottomright' }).addTo(map);
+}
+
+function populateCities() {
+  const cities = [...new Set(GARAGES_DATA.map(g => g.city).filter(Boolean))].sort();
+  const sel = document.getElementById('sector-select');
+  cities.forEach(c => {
+    const o = document.createElement('option');
+    o.value = c;
+    o.textContent = `${c} (${GARAGES_DATA.filter(g=>g.city===c).length})`;
+    sel.appendChild(o);
+  });
+}
+
+function startClock() {
+  const update = () => {
+    const now = new Date();
+    document.getElementById('clock').textContent =
+      now.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
+  };
+  update();
+  setInterval(update, 30000);
+}
+
+function loadCacheFromStorage() {
+  try {
+    const c = localStorage.getItem('geocache_v1');
+    if (c) geocodeCache = JSON.parse(c);
+  } catch(e) {}
+}
+function saveCache() {
+  try { localStorage.setItem('geocache_v1', JSON.stringify(geocodeCache)); } catch(e) {}
+}
+
+// ═══════════════════════════════════════════════════════════
+//  GEOCODING
+// ═══════════════════════════════════════════════════════════
+async function geocodeCity(city) {
+  if (geocodeCache[city]) return geocodeCache[city];
+  try {
+    const q = encodeURIComponent(`${city}, Saône-et-Loire, France`);
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`, {
+      headers: { 'Accept-Language': 'fr' }
+    });
+    const d = await r.json();
+    if (d.length) {
+      const coords = { lat: parseFloat(d[0].lat), lng: parseFloat(d[0].lon) };
+      geocodeCache[city] = coords;
+      saveCache();
+      return coords;
+    }
+  } catch(e) {}
+  return null;
+}
+
+// ── DURATION SELECTOR ───────────────────────────────────────────
+function selectDuration(val) {
+  document.querySelectorAll('.dur-btn').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.v) === val);
+  });
+}
+function getVisitDuration() {
+  const active = document.querySelector('.dur-btn.active');
+  return active ? parseInt(active.dataset.v) : 30;
+}
+
+// ── DÉPARTEMENT ────────────────────────────────────────────────
+function onDeptInput(val) {
+  val = val.trim();
+  if (val.length < 2) {
+    document.getElementById('dept-name').textContent = '—';
+    document.getElementById('dept-region').textContent = '';
+    document.getElementById('dept-status').style.display = 'none';
+    document.getElementById('dept-input').style.borderColor = '';
+    deptCenter = null; deptCode = null;
+    return;
+  }
+  loadDept(val);
+}
+
+function loadDept(code) {
+  const key = code.toUpperCase().replace(/^0+/, '') || code;
+  // Try exact match first, then zero-padded
+  const info = DEPT_INFO[code] || DEPT_INFO[code.padStart(2,'0')] || DEPT_INFO[key];
+  if (!info) {
+    document.getElementById('dept-name').textContent = '❌ Département inconnu';
+    document.getElementById('dept-region').textContent = '';
+    document.getElementById('dept-status').style.display = 'none';
+    document.getElementById('dept-input').style.borderColor = 'var(--accent3)';
+    return;
+  }
+  deptCode = code.padStart(2,'0');
+  deptCenter = { lat: info.lat, lng: info.lng };
+  document.getElementById('dept-name').textContent = info.nom;
+  document.getElementById('dept-region').textContent = info.region;
+  document.getElementById('dept-status').style.display = 'block';
+  document.getElementById('dept-input').style.borderColor = 'var(--accent2)';
+  map.setView([info.lat, info.lng], 9);
+}
+
+// ── DEPOT AUTOCOMPLETE (api-adresse.data.gouv.fr) ──────────────
+let depotDebounceTimer = null;
+let depotSuggestions = [];
+let depotSelectedIdx = -1;
+
+function onDepotInput(val) {
+  clearTimeout(depotDebounceTimer);
+  if (val.length < 3) { hideDepotSuggestions(); return; }
+  depotDebounceTimer = setTimeout(() => fetchDepotSuggestions(val), 220);
+}
+
+async function fetchDepotSuggestions(q) {
+  document.getElementById('depot-spinner').style.display = 'block';
+  try {
+    // If dept is set, use its centroid as proximity bias (lat/lon) → dept results first
+    let url = `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(q)}&limit=8&autocomplete=1`;
+    if (deptCenter) url += `&lat=${deptCenter.lat}&lon=${deptCenter.lng}`;
+
+    const r = await fetch(url);
+    const d = await r.json();
+    let results = d.features || [];
+
+    // Sort: dept results first, then by score × proximity bonus
+    if (deptCode) {
+      results.sort((a, b) => {
+        const aInDept = (a.properties.context || '').startsWith(deptCode);
+        const bInDept = (b.properties.context || '').startsWith(deptCode);
+        if (aInDept && !bInDept) return -1;
+        if (!aInDept && bInDept) return 1;
+        return (b.properties.score || 0) - (a.properties.score || 0);
+      });
+    }
+
+    depotSuggestions = results.slice(0, 6);
+    renderDepotSuggestions();
+  } catch(e) {}
+  document.getElementById('depot-spinner').style.display = 'none';
+}
+
+function renderDepotSuggestions() {
+  const box = document.getElementById('depot-suggestions');
+  if (!depotSuggestions.length) { box.style.display = 'none'; return; }
+  // Position fixed under the input
+  const input = document.getElementById('depot-addr');
+  const rect = input.getBoundingClientRect();
+  box.style.top = (rect.bottom + 4) + 'px';
+  box.style.left = rect.left + 'px';
+  box.style.width = rect.width + 'px';
+  box.innerHTML = '';
+  depotSuggestions.forEach((feat, i) => {
+    const label = feat.properties.label;
+    const ctx = feat.properties.context || '';
+    const inDept = deptCode && ctx.startsWith(deptCode);
+    const badge = inDept
+      ? `<span style="margin-left:6px;padding:1px 7px;background:rgba(6,214,160,.2);color:#06d6a0;border-radius:10px;font-size:10px;font-weight:700;">${deptCode}</span>`
+      : '';
+    const div = document.createElement('div');
+    div.style.cssText = `padding:9px 12px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.06);font-size:13px;transition:background .15s;`;
+    div.innerHTML = `<span style="font-weight:500">${label}</span>${badge}<br><span style="font-size:11px;color:#8b8fa8">${ctx}</span>`;
+    div.onmouseenter = () => { div.style.background = 'rgba(124,106,255,.15)'; depotSelectedIdx = i; };
+    div.onmouseleave = () => { div.style.background = ''; };
+    div.onclick = () => selectDepotSuggestion(i);
+    box.appendChild(div);
+  });
+  box.style.display = 'block';
+  depotSelectedIdx = -1;
+}
+
+function onDepotKeydown(e) {
+  if (!depotSuggestions.length) return;
+  const items = document.getElementById('depot-suggestions').children;
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    depotSelectedIdx = Math.min(depotSelectedIdx + 1, items.length - 1);
+    [...items].forEach((el, i) => el.style.background = i === depotSelectedIdx ? 'rgba(124,106,255,.2)' : '');
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    depotSelectedIdx = Math.max(depotSelectedIdx - 1, 0);
+    [...items].forEach((el, i) => el.style.background = i === depotSelectedIdx ? 'rgba(124,106,255,.2)' : '');
+  } else if (e.key === 'Enter' && depotSelectedIdx >= 0) {
+    e.preventDefault();
+    selectDepotSuggestion(depotSelectedIdx);
+  } else if (e.key === 'Escape') {
+    hideDepotSuggestions();
+  }
+}
+
+function selectDepotSuggestion(idx) {
+  const feat = depotSuggestions[idx];
+  const [lng, lat] = feat.geometry.coordinates;
+  const label = feat.properties.label;
+  document.getElementById('depot-addr').value = label;
+  hideDepotSuggestions();
+  depot = { lat, lng, address: label };
+  if (depotMarker) map.removeLayer(depotMarker);
+  depotMarker = L.marker([lat, lng], { icon: createIcon('🏠', '#ffd166'), zIndexOffset: 1000 }).addTo(map);
+  depotMarker.bindPopup(`<b>🏠 Dépôt</b><br>${label}`).openPopup();
+  map.setView([lat, lng], 12);
+  document.getElementById('depot-confirmed').style.display = 'block';
+  toast('✅ Dépôt localisé !');
+}
+
+function hideDepotSuggestions() {
+  document.getElementById('depot-suggestions').style.display = 'none';
+  depotSuggestions = [];
+}
+
+// Close suggestions when clicking outside
+document.addEventListener('click', e => {
+  if (!e.target.closest('#depot-addr') && !e.target.closest('#depot-suggestions')) hideDepotSuggestions();
+});
+
+// ═══════════════════════════════════════════════════════════
+//  SECTOR LOADING
+// ═══════════════════════════════════════════════════════════
+async function loadSector() {
+  const city = document.getElementById('sector-select').value;
+  if (!city) { toast('Choisissez une ville'); return; }
+  const radiusKm = parseInt(document.getElementById('radius-km').value);
+
+  const centerCoords = CITY_COORDS[city];
+  if (!centerCoords) { toast('❌ Ville non trouvée dans la base'); return; }
+
+  // Instant filtering — all coords pre-loaded from city_coords.js
+  const allInSector = GARAGES_DATA.filter(g => {
+    if (!g.city) return false;
+    const c = CITY_COORDS[g.city];
+    if (!c) return false;
+    return haversine(centerCoords.lat, centerCoords.lng, c.lat, c.lng) <= radiusKm;
+  }).map(g => {
+    const c = CITY_COORDS[g.city];
+    return {
+      ...g,
+      lat: c.lat + (Math.random() - 0.5) * 0.006,
+      lng: c.lng + (Math.random() - 0.5) * 0.006,
+    };
+  });
+
+  if (allInSector.length === 0) { toast('Aucun garage dans cette zone'); return; }
+
+  // ── Filtrer les déjà visités ──────────────────────────────────
+  const db = loadVisitedDB();
+  const unvisited = allInSector.filter(g => !isGarageVisited(g, db));
+  const visitedCount = allInSector.length - unvisited.length;
+
+  if (unvisited.length === 0) {
+    toast('🎉 Tous les garages de ce secteur ont été visités ! Remettez à zéro pour recommencer.', 5000);
+    document.getElementById('garage-count-card').style.display = 'block';
+    document.getElementById('st-total').textContent = allInSector.length;
+    document.getElementById('st-unvisited').textContent = 0;
+    document.getElementById('st-visits').textContent = '-';
+    document.getElementById('st-days').textContent = 0;
+    document.getElementById('visited-history-label').textContent = `✅ ${visitedCount} visités`;
+    document.getElementById('btn-optimize').disabled = true;
+    return;
+  }
+
+  // ── Sélection intelligente : cluster géo le plus dense ─────────
+  // Point de référence = dépôt si défini, sinon centre du secteur
+  const refLat = depot ? depot.lat : centerCoords.lat;
+  const refLng = depot ? depot.lng : centerCoords.lng;
+
+  // Trier par distance depuis le point de référence
+  const sorted = [...unvisited].sort((a, b) =>
+    haversine(refLat, refLng, a.lat, a.lng) - haversine(refLat, refLng, b.lat, b.lng)
+  );
+
+  // Prendre les MAX_CANDIDATES plus proches, puis trouver le cluster le plus dense parmi eux
+  const MAX_CANDIDATES = Math.min(sorted.length, 120);
+  const candidates = sorted.slice(0, MAX_CANDIDATES);
+
+  // Cluster density : pour chaque garage, compter combien d'autres sont dans un rayon de 15km
+  // → prendre le centre du meilleur cluster et sortir les 50 garages les plus proches de lui
+  const CLUSTER_R = 15; // km
+  let bestCenter = candidates[0];
+  let bestScore = 0;
+  candidates.forEach(g => {
+    const score = candidates.filter(h => haversine(g.lat, g.lng, h.lat, h.lng) <= CLUSTER_R).length;
+    if (score > bestScore) { bestScore = score; bestCenter = g; }
+  });
+
+  const MAX_DAY = 50; // max garages proposés par jour
+  sectorGarages = candidates
+    .filter(g => haversine(bestCenter.lat, bestCenter.lng, g.lat, g.lng) <= CLUSTER_R * 1.5)
+    .sort((a,b) => haversine(refLat, refLng, a.lat, a.lng) - haversine(refLat, refLng, b.lat, b.lng))
+    .slice(0, MAX_DAY);
+
+  // ── Stats ─────────────────────────────────────────────────────
+  const visitDuration = getVisitDuration();
+  const startH = timeToMin(getTimePicker('start-time'));
+  const endH = timeToMin(getTimePicker('end-time'));
+  const lunchS = timeToMin(getTimePicker('lunch-start'));
+  const lunchE = timeToMin(getTimePicker('lunch-end'));
+  const workMin = (endH - startH) - (lunchE - lunchS);
+  const visitsPerDay = Math.max(1, Math.floor(workMin / visitDuration));
+  const daysLeft = Math.ceil(unvisited.length / visitsPerDay);
+
+  document.getElementById('st-total').textContent = allInSector.length;
+  document.getElementById('st-unvisited').textContent = unvisited.length;
+  document.getElementById('st-visits').textContent = visitsPerDay;
+  document.getElementById('st-days').textContent = daysLeft;
+  document.getElementById('visited-history-label').textContent =
+    visitedCount > 0 ? `✅ ${visitedCount} déjà visités` : '';
+  document.getElementById('garage-count-card').style.display = 'block';
+  document.getElementById('btn-optimize').disabled = false;
+  document.getElementById('no-route-msg').style.display = 'none';
+
+  // ── Markers sur la carte ───────────────────────────────────────
+  clearMapMarkers();
+  // Visités = gris, non visités = violet
+  allInSector.forEach(g => {
+    const wasVisited = isGarageVisited(g, db);
+    const inToday = sectorGarages.some(s => garageKey(s) === garageKey(g));
+    const color = wasVisited ? '#555870' : inToday ? '#7c6aff' : '#3a3a5c';
+    const opacity = wasVisited ? 0.3 : inToday ? 0.85 : 0.4;
+    const m = L.circleMarker([g.lat, g.lng], {
+      radius: inToday ? 7 : 5, fillColor: color, fillOpacity: opacity,
+      color: wasVisited ? 'none' : '#fff', weight: inToday ? 1 : 0
+    }).addTo(map);
+    const label = wasVisited ? `<span style="color:#06d6a0">✅ Visité le ${db[garageKey(g)]}</span>` : '';
+    m.bindPopup(`<b>${g.title}</b><br>${g.street || ''}<br>${g.city}<br>${g.phone || ''}<br>${label}`);
+    stopMarkers.push(m);
+  });
+
+  map.fitBounds(L.latLngBounds(sectorGarages.map(g => [g.lat, g.lng])).pad(0.15));
+  toast(`✅ ${sectorGarages.length} garages sélectionnés pour aujourd'hui (${unvisited.length} non visités sur ${allInSector.length})`);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  ROUTE OPTIMIZATION (Nearest Neighbor + time scheduling)
+// ═══════════════════════════════════════════════════════════
+// ── GOOGLE MAPS API ───────────────────────────────────────────────
+let gmapsKey = localStorage.getItem('gmaps_key') || '';
+
+function saveGmapsKey(val) {
+  gmapsKey = val.trim();
+  localStorage.setItem('gmaps_key', gmapsKey);
+  const st = document.getElementById('traffic-status');
+  if (gmapsKey) {
+    st.style.color = 'var(--accent2)';
+    st.textContent = '🟢 Google Maps actif — trafic temps réel';
+  } else {
+    st.style.color = '#ff6b6b';
+    st.textContent = '🔴 Clé requise pour calculer la tournée';
+  }
+}
+
+async function getRealTravelTime(fromLat, fromLng, toLat, toLng, departAtMin) {
+  // Heure de départ en timestamp UNIX (aujourd'hui à l'heure prévue du trajet)
+  const now = new Date();
+  const depart = new Date(now.getFullYear(), now.getMonth(), now.getDate(),
+    Math.floor(departAtMin / 60), departAtMin % 60, 0);
+  // Ne pas passer dans le passé (Google refuse les timestamps passés)
+  const ts = Math.max(Math.floor(depart.getTime() / 1000), Math.floor(Date.now() / 1000) + 60);
+
+  const dmUrl = `https://maps.googleapis.com/maps/api/distancematrix/json`
+    + `?origins=${fromLat},${fromLng}`
+    + `&destinations=${toLat},${toLng}`
+    + `&departure_time=${ts}`
+    + `&traffic_model=best_guess`
+    + `&key=${gmapsKey}`;
+
+  const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(dmUrl)}`;
+
+  try {
+    const r = await fetch(proxyUrl);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    const el = d.rows?.[0]?.elements?.[0];
+    if (!el || el.status !== 'OK') throw new Error(el?.status || 'no element');
+    // duration_in_traffic = avec bouchons, duration = sans
+    const travelSec = el.duration_in_traffic?.value ?? el.duration?.value ?? 0;
+    const distM = el.distance?.value ?? 0;
+    return {
+      travelMin: Math.max(1, Math.round(travelSec / 60)),
+      distKm: Math.round(distM / 100) / 10,
+      source: 'gmaps'
+    };
+  } catch(e) {
+    console.warn('Google Maps API error:', e.message);
+    throw e; // on ne fait pas de fallback — clé obligatoire
+  }
+  // Pas de fallback — clé Google Maps obligatoire
+  const dist = haversine(fromLat, fromLng, toLat, toLng) * 1.3;
+  return {
+    travelMin: Math.max(1, Math.round((dist / 50) * 60)),
+    distKm: Math.round(dist * 10) / 10,
+    source: 'fallback'
+  };
+}
+
+// ── ROUTE OPTIMIZATION ────────────────────────────────────────────
+async function optimizeRoute() {
+  if (sectorGarages.length === 0) { toast('Chargez un secteur d\'abord'); return; }
+
+  const visitDuration = getVisitDuration();
+  const startH  = timeToMin(getTimePicker('start-time'));
+  const endH    = timeToMin(getTimePicker('end-time'));
+  const lunchS  = timeToMin(getTimePicker('lunch-start'));
+  const lunchE  = timeToMin(getTimePicker('lunch-end'));
+  const startLat = depot ? depot.lat : sectorGarages[0].lat;
+  const startLng = depot ? depot.lng : sectorGarages[0].lng;
+
+  // ── PHASE 1 : ordre optimal (Nearest Neighbor, haversine, instantané)
+  let remaining = [...sectorGarages];
+  let ordered = [];
+  let curLat = startLat, curLng = startLng;
+  while (remaining.length > 0) {
+    let best = -1, bestDist = Infinity;
+    remaining.forEach((g, i) => {
+      const d = haversine(curLat, curLng, g.lat, g.lng);
+      if (d < bestDist) { bestDist = d; best = i; }
+    });
+    ordered.push(remaining[best]);
+    curLat = remaining[best].lat; curLng = remaining[best].lng;
+    remaining.splice(best, 1);
+  }
+
+  // ── PHASE 2 : temps de trajet réels (Google Maps obligatoire)
+  if (!gmapsKey) {
+    hideLoading();
+    toast('🔴 Entrez une clé API Google Maps pour calculer la tournée', 4000);
+    document.getElementById('traffic-status').style.color = '#ff6b6b';
+    document.getElementById('traffic-status').textContent = '🔴 Clé requise pour calculer la tournée';
+    document.getElementById('gmaps-key').focus();
+    return;
+  }
+
+  const maxStops = Math.min(ordered.length, 40);
+  showLoading('🚦 Calcul des temps de trajet réels…');
+
+  route = [];
+  let currentTime = startH;
+  let prevLat = startLat, prevLng = startLng;
+
+  for (let i = 0; i < maxStops; i++) {
+    const g = ordered[i];
+    setLoadingBar(Math.round((i / maxStops) * 90));
+    document.getElementById('loading-text').textContent =
+      `🚦 Trajet ${i + 1}/${maxStops} — ${g.title}`;
+
+    const { travelMin, distKm } = await getRealTravelTime(
+      prevLat, prevLng, g.lat, g.lng, currentTime
+    );
+
+    let arrival = currentTime + travelMin;
+
+    // Pause déjeuner
+    if (arrival >= lunchS && arrival < lunchE) arrival = lunchE;
+    if (arrival >= lunchS && arrival < lunchE && currentTime < lunchS) arrival = lunchE;
+
+    // Fin de journée
+    if (arrival + visitDuration > endH) break;
+
+    route.push({
+      garage: g,
+      arrivalTime: arrival,
+      departTime: arrival + visitDuration,
+      travelMin,
+      distKm,
+      type: 'garage',
+      visited: false,
+      trafficSource: 'gmaps',
+    });
+
+    currentTime = arrival + visitDuration;
+    prevLat = g.lat; prevLng = g.lng;
+  }
+
+  // Retour dépôt
+  if (route.length > 0) {
+    const last = route[route.length - 1];
+    const ret = await getRealTravelTime(last.garage.lat, last.garage.lng,
+      depot ? depot.lat : startLat, depot ? depot.lng : startLng, last.departTime);
+    const returnTime = last.departTime + ret.travelMin;
+    document.getElementById('est-end').textContent = minToTime(returnTime);
+    document.getElementById('est-dist').textContent =
+      `~${Math.round(route.reduce((a,r) => a + r.distKm, 0) + ret.distKm)} km`;
+    document.getElementById('est-travel').textContent =
+      `~${Math.round(route.reduce((a,r) => a + r.travelMin, 0) + ret.travelMin)} min`;
+  }
+
+  setLoadingBar(100);
+  hideLoading();
+
+  // Mise à jour statut trafic
+  const st = document.getElementById('traffic-status');
+  st.style.color = 'var(--accent2)';
+  st.textContent = `🟢 ${route.length} trajets calculés avec trafic temps réel (Google Maps)`;
+
+  currentStopIdx = 0;
+  tourStarted = true;
+  renderRouteList();
+  renderRouteOnMap();
+  updateStats();
+  switchTab('route');
+  document.getElementById('active-banner').classList.add('show');
+  document.getElementById('tour-badge').style.display = 'inline-block';
+  document.getElementById('tour-badge').className = 'badge badge-active';
+  document.getElementById('tour-badge').textContent = '● Tournée active';
+  updateActiveBanner();
+
+  toast(`✅ ${route.length} visites — temps de trajet réels Google Maps`);
+}
+
+function renderRouteList() {
+  const list = document.getElementById('route-list');
+  list.innerHTML = '';
+
+  if (route.length === 0) {
+    list.innerHTML = '<div style="text-align:center;color:var(--text2);padding:20px;font-size:13px;">Aucune visite planifiée</div>';
+    return;
+  }
+
+  // Depot start
+  if (depot) {
+    const depotEl = document.createElement('div');
+    depotEl.className = 'route-item';
+    depotEl.innerHTML = `
+      <div class="stop-num" style="background:#ffd166;color:#000">🏠</div>
+      <div class="stop-info">
+        <div class="stop-name">Dépôt de départ</div>
+        <div class="stop-meta">${depot.address}</div>
+      </div>
+      <div class="stop-time">${minToTime(timeToMin(getTimePicker('start-time')))}</div>`;
+    list.appendChild(depotEl);
+  }
+
+  route.forEach((stop, i) => {
+    const el = document.createElement('div');
+    el.className = `route-item${i === currentStopIdx && !stop.visited ? ' current' : ''}${stop.visited ? ' visited' : ''}${stop.type === 'rdv' ? ' rdv' : ''}`;
+    el.id = `stop-${i}`;
+    el.onclick = () => jumpToStop(i);
+
+    const numEl = document.createElement('div');
+    numEl.className = `stop-num${i === currentStopIdx && !stop.visited ? ' current' : ''}${stop.visited ? ' visited' : ''}${stop.type === 'rdv' ? ' rdv' : ''}`;
+    numEl.textContent = stop.type === 'rdv' ? '📅' : (i + 1);
+
+    const info = document.createElement('div');
+    info.className = 'stop-info';
+    info.innerHTML = `
+      <div class="stop-name">${stop.type === 'rdv' ? '📅 ' + (stop.rdvDesc || 'Rendez-vous') : stop.garage.title}</div>
+      <div class="stop-meta">${stop.type === 'rdv' ? '' : (stop.garage.city + (stop.travelMin > 0 ? ` • ${stop.travelMin}min trajet` : ''))}</div>`;
+
+    const time = document.createElement('div');
+    time.className = 'stop-time';
+    if (stop.visited) time.innerHTML = '<span style="color:var(--accent2)">✅</span>';
+    else time.textContent = minToTime(stop.arrivalTime);
+
+    el.appendChild(numEl);
+    el.appendChild(info);
+    el.appendChild(time);
+    list.appendChild(el);
+  });
+
+  // Scroll current into view
+  const cur = document.getElementById(`stop-${currentStopIdx}`);
+  if (cur) cur.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+function renderRouteOnMap() {
+  // Remove old route
+  if (routeLayer) map.removeLayer(routeLayer);
+  clearMapMarkers();
+
+  if (route.length === 0) return;
+
+  const points = [];
+  if (depot) points.push([depot.lat, depot.lng]);
+  route.forEach(s => {
+    if (s.garage) points.push([s.garage.lat, s.garage.lng]);
+  });
+  if (depot) points.push([depot.lat, depot.lng]);
+
+  // Draw polyline
+  routeLayer = L.polyline(points, {
+    color: '#7c6aff', weight: 2.5, opacity: .6, dashArray: '6,4'
+  }).addTo(map);
+
+  // Draw depot
+  if (depot) {
+    if (depotMarker) map.removeLayer(depotMarker);
+    depotMarker = L.marker([depot.lat, depot.lng], { icon: createIcon('🏠', '#ffd166'), zIndexOffset: 1000 }).addTo(map);
+    depotMarker.bindPopup(`<b>🏠 Dépôt</b><br>${depot.address}`);
+  }
+
+  // Draw stops
+  route.forEach((stop, i) => {
+    if (!stop.garage) return;
+    const isCurrent = i === currentStopIdx && !stop.visited;
+    const color = stop.visited ? '#555870' : isCurrent ? '#06d6a0' : stop.type === 'rdv' ? '#ffd166' : '#7c6aff';
+    const m = L.marker([stop.garage.lat, stop.garage.lng], {
+      icon: createNumberIcon(i + 1, color, isCurrent),
+      zIndexOffset: isCurrent ? 900 : 0
+    }).addTo(map);
+    m.bindPopup(`
+      <b>${stop.garage.title}</b><br>
+      ${stop.garage.street || ''}<br>
+      ${stop.garage.city}<br>
+      ${stop.garage.phone || ''}<br>
+      <em>Arrivée prévue : ${minToTime(stop.arrivalTime)}</em>
+    `);
+    stopMarkers.push(m);
+  });
+
+  map.fitBounds(routeLayer.getBounds().pad(0.1));
+}
+
+function createIcon(emoji, bg) {
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:32px;height:32px;background:${bg};border-radius:50%;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 8px rgba(0,0,0,.4)">${emoji}</div>`,
+    iconSize: [32, 32], iconAnchor: [16, 16]
+  });
+}
+
+function createNumberIcon(n, color, pulse = false) {
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:28px;height:28px;background:${color};border-radius:50%;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.4);font-family:Inter,sans-serif${pulse?';animation:pulse 1.5s infinite':''}">${n}</div>`,
+    iconSize: [28, 28], iconAnchor: [14, 14]
+  });
+}
+
+function clearMapMarkers() {
+  stopMarkers.forEach(m => map.removeLayer(m));
+  stopMarkers = [];
+}
+
+// ═══════════════════════════════════════════════════════════
+//  TOUR ACTIONS
+// ═══════════════════════════════════════════════════════════
+function updateActiveBanner() {
+  if (!tourStarted || route.length === 0) return;
+
+  // Find next unvisited
+  let idx = currentStopIdx;
+  while (idx < route.length && route[idx].visited) idx++;
+  currentStopIdx = idx;
+
+  if (idx >= route.length) {
+    document.getElementById('banner-name').textContent = '🎉 Tournée terminée !';
+    document.getElementById('banner-addr').textContent = 'Retournez au dépôt';
+    toast('🎉 Toutes les visites sont terminées !');
+    document.getElementById('tour-badge').textContent = '✅ Tournée terminée';
+    document.getElementById('tour-badge').className = 'badge badge-active';
+    return;
+  }
+
+  const stop = route[idx];
+  if (stop.type === 'rdv') {
+    document.getElementById('banner-name').textContent = `📅 ${stop.rdvDesc || 'Rendez-vous'}`;
+    document.getElementById('banner-addr').textContent = `Durée : 30 minutes`;
+  } else {
+    document.getElementById('banner-name').textContent = stop.garage.title;
+    document.getElementById('banner-addr').textContent = `${stop.garage.street || ''}, ${stop.garage.city} • ${minToTime(stop.arrivalTime)}`;
+  }
+
+  // Center map on current stop
+  if (stop.garage) {
+    map.panTo([stop.garage.lat, stop.garage.lng], { animate: true });
+    const m = stopMarkers[idx];
+    if (m) m.openPopup();
+  }
+
+  renderRouteList();
+}
+
+function markVisited() {
+  if (!tourStarted || currentStopIdx >= route.length) return;
+  const stop = route[currentStopIdx];
+  stop.visited = true;
+
+  // Sauvegarder en base persistante (seulement les vrais garages, pas les RDV)
+  if (stop.type === 'garage' && stop.garage) {
+    persistVisit(stop.garage);
+  }
+
+  visitLog.push({
+    time: new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}),
+    name: stop.type === 'rdv' ? (stop.rdvDesc || 'RDV') : stop.garage.title,
+    type: stop.type
+  });
+  updateVisitLog();
+  updateStats();
+  renderRouteOnMap();
+  currentStopIdx++;
+  updateActiveBanner();
+  toast('✅ Visite enregistrée !');
+}
+
+function skipStop() {
+  if (!tourStarted || currentStopIdx >= route.length) return;
+  route[currentStopIdx].visited = true;
+  currentStopIdx++;
+  updateActiveBanner();
+  toast('⏭ Arrêt ignoré');
+}
+
+function jumpToStop(idx) {
+  if (!tourStarted) return;
+  currentStopIdx = idx;
+  updateActiveBanner();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  RDV MANAGEMENT
+// ═══════════════════════════════════════════════════════════
+let rdvResolve = null;
+
+function openRdvModal() {
+  document.getElementById('rdv-modal').classList.add('open');
+}
+function closeRdvModal() {
+  document.getElementById('rdv-modal').classList.remove('open');
+}
+function confirmRdv() {
+  const timeStr = getTimePicker('rdv-time');
+  const desc = document.getElementById('rdv-desc').value || 'Rendez-vous';
+  addRdvToRoute(timeStr, desc);
+  closeRdvModal();
+  document.getElementById('rdv-desc').value = '';
+}
+
+function addRdvToRoute(timeStr, desc = 'Rendez-vous') {
+  const rdvMin = timeToMin(timeStr);
+  const rdvStop = {
+    type: 'rdv',
+    rdvDesc: desc,
+    arrivalTime: rdvMin,
+    departTime: rdvMin + 30,
+    travelMin: 0,
+    distKm: 0,
+    visited: false,
+    garage: currentStopIdx < route.length ? route[currentStopIdx].garage : null
+  };
+
+  // Find insertion point
+  let insertIdx = route.findIndex(s => !s.visited && s.arrivalTime >= rdvMin);
+  if (insertIdx === -1) insertIdx = route.length;
+
+  route.splice(insertIdx, 0, rdvStop);
+
+  // Reschedule stops after the RDV
+  rescheduleAfter(insertIdx + 1, rdvStop.departTime);
+  renderRouteList();
+  renderRouteOnMap();
+  updateStats();
+  toast(`📅 RDV ajouté à ${timeStr}`);
+}
+
+function rescheduleAfter(fromIdx, fromTime) {
+  const visitDuration = getVisitDuration();
+  const lunchS = timeToMin(getTimePicker('lunch-start'));
+  const lunchE = timeToMin(getTimePicker('lunch-end'));
+  const endH = timeToMin(getTimePicker('end-time'));
+  const travelSpeed = 40;
+
+  let currentTime = fromTime;
+  let prevLat = null, prevLng = null;
+
+  // Get previous stop coords for travel calc
+  if (fromIdx > 0) {
+    const prev = route[fromIdx - 1];
+    if (prev.garage) { prevLat = prev.garage.lat; prevLng = prev.garage.lng; }
+  }
+
+  for (let i = fromIdx; i < route.length; i++) {
+    const stop = route[i];
+    if (stop.visited) continue;
+
+    if (prevLat !== null && stop.garage) {
+      const dist = haversine(prevLat, prevLng, stop.garage.lat, stop.garage.lng);
+      const travel = Math.round((dist / travelSpeed) * 60);
+      stop.travelMin = travel;
+      stop.distKm = Math.round(dist * 10) / 10;
+      currentTime += travel;
+    }
+
+    if (currentTime >= lunchS && currentTime < lunchE) currentTime = lunchE;
+    if (currentTime + visitDuration > endH) {
+      route.splice(i); // cut remaining that don't fit
+      break;
+    }
+
+    stop.arrivalTime = currentTime;
+    stop.departTime = currentTime + (stop.type === 'rdv' ? 30 : visitDuration);
+    currentTime = stop.departTime;
+
+    if (stop.garage) { prevLat = stop.garage.lat; prevLng = stop.garage.lng; }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  STATS
+// ═══════════════════════════════════════════════════════════
+function updateStats() {
+  const total = route.length;
+  const visited = route.filter(s => s.visited).length;
+  const remaining = total - visited;
+  const rdvs = route.filter(s => s.type === 'rdv').length;
+  const pct = total > 0 ? Math.round((visited / total) * 100) : 0;
+
+  document.getElementById('st-visited').textContent = visited;
+  document.getElementById('st-remaining').textContent = remaining;
+  document.getElementById('st-rdvs').textContent = rdvs;
+  document.getElementById('progress-bar').style.width = pct + '%';
+  document.getElementById('progress-label').textContent = pct + '% complété';
+}
+
+function updateVisitLog() {
+  const log = document.getElementById('visit-log');
+  if (visitLog.length === 0) { log.innerHTML = '<div style="color:var(--text3);font-style:italic;">Aucune visite enregistrée</div>'; return; }
+  log.innerHTML = visitLog.slice().reverse().map(v =>
+    `<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,.05);">
+      <span style="color:var(--accent2)">${v.time}</span> — ${v.name}
+    </div>`
+  ).join('');
+}
+
+function resetTour() {
+  if (!confirm('Réinitialiser toute la tournée ?')) return;
+  route = [];
+  currentStopIdx = 0;
+  tourStarted = false;
+  visitLog = [];
+  renderRouteList();
+  clearMapMarkers();
+  if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+  document.getElementById('active-banner').classList.remove('show');
+  document.getElementById('tour-badge').style.display = 'none';
+  document.getElementById('no-route-msg').style.display = 'block';
+  updateStats();
+  updateVisitLog();
+  toast('🔄 Tournée réinitialisée');
+}
+
+// ═══════════════════════════════════════════════════════════
+//  AI ASSISTANT
+// ═══════════════════════════════════════════════════════════
+// ── RAPPORTS DE VISITE ───────────────────────────────────────────
+function loadReports() {
+  try { return JSON.parse(localStorage.getItem('visit_reports_v1') || '{}'); } catch(e) { return {}; }
+}
+function saveReport(garage, text) {
+  const db = loadReports();
+  const key = garageKey(garage);
+  if (!db[key]) db[key] = [];
+  db[key].push({ date: new Date().toISOString().slice(0,10), time: new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}), text });
+  localStorage.setItem('visit_reports_v1', JSON.stringify(db));
+}
+
+// ── VOICE SYNTHESIS (Text-to-speech) ────────────────────────────
+function speak(text) {
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  // Nettoyer le HTML pour la voix
+  const clean = text.replace(/<[^>]+>/g, '').replace(/[•►→]/g, '').trim();
+  const utt = new SpeechSynthesisUtterance(clean);
+  utt.lang = 'fr-FR';
+  utt.rate = 1.05;
+  utt.pitch = 1;
+  // Chercher une voix française
+  const voices = window.speechSynthesis.getVoices();
+  const frVoice = voices.find(v => v.lang.startsWith('fr')) || null;
+  if (frVoice) utt.voice = frVoice;
+  window.speechSynthesis.speak(utt);
+}
+
+// ── VOICE RECOGNITION (Speech-to-text) ──────────────────────────
+let recognition = null;
+let isListening = false;
+let rapportMode = false; // mode dictée de rapport
+let rapportGarage = null;
+
+function initSpeechRecognition() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return null;
+  const r = new SR();
+  r.lang = 'fr-FR';
+  r.continuous = false;
+  r.interimResults = false;
+
+  r.onstart = () => {
+    isListening = true;
+    document.getElementById('ai-fab').classList.add('listening');
+    document.getElementById('ai-mic-btn').style.background = 'rgba(255,80,80,.4)';
+    document.getElementById('ai-mic-btn').textContent = '⏹';
+    document.getElementById('ai-send-mic').textContent = '⏹';
+    document.getElementById('ai-status-line').textContent = '🔴 Écoute…';
+  };
+
+  r.onend = () => {
+    isListening = false;
+    document.getElementById('ai-fab').classList.remove('listening');
+    document.getElementById('ai-mic-btn').style.background = 'rgba(124,106,255,.2)';
+    document.getElementById('ai-mic-btn').textContent = '🎤';
+    document.getElementById('ai-send-mic').textContent = '🎤';
+    document.getElementById('ai-status-line').textContent = '● Prêt';
+  };
+
+  r.onerror = (e) => {
+    isListening = false;
+    document.getElementById('ai-mic-btn').style.background = 'rgba(124,106,255,.2)';
+    document.getElementById('ai-mic-btn').textContent = '🎤';
+    document.getElementById('ai-send-mic').textContent = '🎤';
+    document.getElementById('ai-status-line').textContent = '● Prêt';
+    if (e.error !== 'aborted') appendAIMsg('⚠️ Micro non disponible. Vérifiez les permissions.', 'bot');
+  };
+
+  r.onresult = (e) => {
+    const transcript = e.results[0][0].transcript.trim();
+    document.getElementById('ai-input').value = transcript;
+    appendAIMsg(transcript, 'user');
+
+    if (rapportMode) {
+      // On est en mode dictée → sauvegarder le rapport
+      finishRapport(transcript);
+    } else {
+      const response = processAI(transcript);
+      setTimeout(() => {
+        appendAIMsg(response, 'bot');
+        speak(response);
+      }, 300);
+    }
+  };
+
+  return r;
+}
+
+function startVoiceInput() {
+  if (!recognition) recognition = initSpeechRecognition();
+  if (!recognition) {
+    appendAIMsg('⚠️ Votre navigateur ne supporte pas la reconnaissance vocale. Utilisez Chrome ou Edge.', 'bot');
+    return;
+  }
+  if (isListening) {
+    recognition.stop();
+    return;
+  }
+  try { recognition.start(); } catch(e) {}
+}
+
+function startRapport() {
+  const stop = route[currentStopIdx];
+  if (!stop || !stop.garage) { speak('Aucune visite en cours.'); return; }
+  rapportMode = true;
+  rapportGarage = stop.garage;
+  const msg = `🎤 Rapport pour <strong>${stop.garage.title}</strong>. Dictez maintenant…`;
+  appendAIMsg(msg, 'bot');
+  speak(`Dictez votre rapport pour ${stop.garage.title}`);
+  setTimeout(() => startVoiceInput(), 1200);
+}
+
+function finishRapport(text) {
+  rapportMode = false;
+  if (rapportGarage && text) {
+    saveReport(rapportGarage, text);
+    const msg = `✅ Rapport enregistré pour <strong>${rapportGarage.title}</strong> :<br><em>"${text}"</em>`;
+    appendAIMsg(msg, 'bot');
+    speak(`Rapport enregistré pour ${rapportGarage.title}`);
+  }
+  rapportGarage = null;
+}
+
+function openWaze(garage) {
+  if (!garage) { speak('Aucune destination trouvée.'); return; }
+  // Waze deep link — fonctionne sur mobile et redirige vers Maps sur desktop
+  const url = `https://waze.com/ul?ll=${garage.lat},${garage.lng}&navigate=yes&zoom=17`;
+  window.open(url, '_blank');
+  speak(`Lancement de Waze vers ${garage.title}`);
+  return `🗺 Navigation Waze lancée vers <strong>${garage.title}</strong>`;
+}
+
+function toggleAI() {
+  const panel = document.getElementById('ai-panel');
+  panel.classList.toggle('open');
+  if (panel.classList.contains('open')) {
+    document.getElementById('ai-input').focus();
+    // Charger les voix (nécessaire sur certains navigateurs)
+    if (window.speechSynthesis) window.speechSynthesis.getVoices();
+  }
+}
+
+function sendAI(text) {
+  const input = document.getElementById('ai-input');
+  const msg = text || input.value.trim();
+  if (!msg) return;
+  input.value = '';
+  appendAIMsg(msg, 'user');
+  const response = processAI(msg);
+  setTimeout(() => {
+    appendAIMsg(response, 'bot');
+    speak(response);
+  }, 300);
+}
+
+function appendAIMsg(text, type) {
+  const msgs = document.getElementById('ai-msgs');
+  const div = document.createElement('div');
+  div.className = `msg ${type}`;
+  div.innerHTML = text;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function processAI(msg) {
+  const m = msg.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+  // ── RAPPORT DE VISITE ────────────────────────────────────────
+  if (m.startsWith('rapport') || m.startsWith('compte rendu') || m.startsWith('note')) {
+    const colonIdx = msg.indexOf(':');
+    if (colonIdx !== -1 && colonIdx < msg.length - 2) {
+      // "rapport : texte directement dans le message"
+      const texte = msg.slice(colonIdx + 1).trim();
+      const stop = route[currentStopIdx];
+      if (stop?.garage) {
+        saveReport(stop.garage, texte);
+        return `✅ Rapport enregistré pour <strong>${stop.garage.title}</strong> :<br><em>"${texte}"</em>`;
+      }
+    }
+    // Sinon → mode dictée vocale
+    setTimeout(() => startRapport(), 100);
+    return `🎤 Prêt à enregistrer votre rapport. Parlez après le bip…`;
+  }
+
+  // ── WAZE / NAVIGATION ───────────────────────────────────────
+  if (m.match(/waze|navigation|navigu|itineraire|lance.*(map|nav)/)) {
+    const next = route.find(s => !s.visited && s.garage);
+    if (!next) return '🎉 Plus de destination, tournée terminée !';
+    return openWaze(next.garage);
+  }
+
+  // RDV commands
+  const rdvMatch = m.match(/rdv.*(a|vers?)\s*(\d{1,2})[h:](\d{0,2})/);
+  const rdvMatch2 = m.match(/(a|vers?)\s*(\d{1,2})[h:](\d{0,2}).*rdv/);
+  const rdvMatch3 = m.match(/(\d{1,2})[h:](\d{2})/);
+
+  if (m.includes('rdv') && (rdvMatch || rdvMatch2 || rdvMatch3)) {
+    let h, min = 0;
+    const match = rdvMatch || rdvMatch2;
+    if (match) {
+      h = parseInt(match[2]); min = parseInt(match[3] || 0);
+    } else if (rdvMatch3) {
+      h = parseInt(rdvMatch3[1]); min = parseInt(rdvMatch3[2] || 0);
+    }
+    if (h >= 8 && h <= 18) {
+      const timeStr = `${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')}`;
+      const desc = msg.replace(/.*rdv/i,'').replace(/a \d+h\d*/i,'').trim() || 'Rendez-vous';
+      addRdvToRoute(timeStr, desc || 'Rendez-vous');
+      switchTab('route');
+      return `📅 RDV ajouté à <strong>${timeStr}</strong> ! La tournée est recalculée automatiquement. Vous reprendrez vos visites après.`;
+    }
+  }
+
+  // RDV finished
+  if (m.match(/rdv.*(termin|fini|fait|done|over)/) || m.match(/(termin|fini|fait).*rdv/) || m === 'rdv termine') {
+    const rdvIdx = route.findIndex(s => s.type === 'rdv' && !s.visited);
+    if (rdvIdx !== -1) {
+      route[rdvIdx].visited = true;
+      visitLog.push({ time: new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}), name: route[rdvIdx].rdvDesc || 'RDV', type: 'rdv' });
+      updateVisitLog();
+      updateStats();
+      renderRouteList();
+      renderRouteOnMap();
+      const next = route.find(s => !s.visited);
+      return next
+        ? `✅ RDV terminé ! Prochain arrêt : <strong>${next.garage?.title || 'Inconnu'}</strong> à <strong>${minToTime(next.arrivalTime)}</strong>.`
+        : '✅ RDV terminé ! 🎉 Tournée terminée pour aujourd\'hui.';
+    }
+    return 'Aucun RDV en cours trouvé.';
+  }
+
+  // Next stop
+  if (m.match(/prochain|suivant|next/)) {
+    const next = route.find(s => !s.visited);
+    if (!next) return '🎉 Toutes les visites sont terminées !';
+    if (next.type === 'rdv') return `📅 Prochain arrêt : <strong>${next.rdvDesc || 'RDV'}</strong> à <strong>${minToTime(next.arrivalTime)}</strong>`;
+    return `📍 Prochain arrêt : <strong>${next.garage?.title}</strong><br>${next.garage?.city} — ${minToTime(next.arrivalTime)}`;
+  }
+
+  // Count remaining
+  if (m.match(/combien|reste|restant/)) {
+    const remaining = route.filter(s => !s.visited && s.type !== 'rdv').length;
+    const visited = route.filter(s => s.visited && s.type !== 'rdv').length;
+    return `📊 <strong>${visited}</strong> visites effectuées, <strong>${remaining}</strong> restantes aujourd'hui.`;
+  }
+
+  // End time
+  if (m.match(/heure.*(fin|retour)|fin.*(journee|tournee)/)) {
+    const endEst = document.getElementById('est-end').textContent;
+    return `⏰ Heure de fin estimée : <strong>${endEst}</strong>`;
+  }
+
+  // Pause / break
+  const pauseMatch = m.match(/pause.*(a|vers?)\s*(\d{1,2})[h:](\d{0,2})/);
+  if (m.includes('pause') && pauseMatch) {
+    const h = parseInt(pauseMatch[2]); const min = parseInt(pauseMatch[3] || 0);
+    if (h >= 8 && h <= 18) {
+      const timeStr = `${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')}`;
+      addRdvToRoute(timeStr, '☕ Pause');
+      return `☕ Pause ajoutée à <strong>${timeStr}</strong>.`;
+    }
+  }
+
+  // Mark visited
+  if (m.match(/visite|fait|check|ok|marque/)) {
+    markVisited();
+    return '✅ Visite enregistrée ! Passage au prochain arrêt.';
+  }
+
+  // Help
+  if (m.match(/aide|help|commande/)) {
+    return `🎙 Commandes vocales disponibles :<br><br>
+    🗺 <em>"Lance Waze"</em> — navigation vers prochain arrêt<br>
+    📍 <em>"Prochain arrêt"</em> — nom + heure du suivant<br>
+    🎤 <em>"Rapport : texte…"</em> — enregistre un rapport de visite<br>
+    ✅ <em>"Visité"</em> — marque l'arrêt actuel comme fait<br>
+    📅 <em>"RDV à 10h30"</em> — ajoute un rendez-vous<br>
+    ✅ <em>"RDV terminé"</em> — clôture le RDV en cours<br>
+    📊 <em>"Combien de visites restantes ?"</em><br>
+    ⏰ <em>"Heure de fin ?"</em><br>
+    ☕ <em>"Pause à 13h"</em>`;
+  }
+
+  // Default
+  const suggestions = [
+    'Essayez : "j\'ai un rdv à 11h30"',
+    'Essayez : "combien de visites restantes ?"',
+    'Essayez : "prochain arrêt"',
+    'Essayez : "rdv terminé"'
+  ];
+  return `Désolé, je n\'ai pas compris. 🤔<br><em>${suggestions[Math.floor(Math.random() * suggestions.length)]}</em>`;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  UTILS
+// ═══════════════════════════════════════════════════════════
+function haversine(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function timeToMin(t) {
+  if (!t) return 0;
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+}
+function minToTime(min) {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) => {
+    b.classList.toggle('active', ['plan','route','stats'][i] === name);
+  });
+  document.querySelectorAll('.tab-content').forEach((c,i) => {
+    c.classList.toggle('active', ['tab-plan','tab-route','tab-stats'][i] === `tab-${name}`);
+  });
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+function showLoading(msg) {
+  const ol = document.getElementById('loading-overlay');
+  ol.classList.add('show');
+  document.getElementById('loading-text').textContent = msg;
+  document.getElementById('loading-bar').style.width = '0%';
+}
+function hideLoading() {
+  document.getElementById('loading-overlay').classList.remove('show');
+}
+function setLoadingBar(pct) {
+  document.getElementById('loading-bar').style.width = pct + '%';
+}
+
+function centerMap() {
+  if (route.length > 0 && routeLayer) {
+    map.fitBounds(routeLayer.getBounds().pad(0.1));
+  } else if (sectorGarages.length > 0) {
+    map.fitBounds(L.latLngBounds(sectorGarages.map(g => [g.lat, g.lng])).pad(0.1));
+  }
+}
+
+function toggleLabels() {
+  showLabels = !showLabels;
+  toast(showLabels ? '🏷 Labels activés' : '🏷 Labels masqués');
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── SERVICE WORKER (PWA) ─────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => console.log('SW registered:', reg.scope))
+      .catch(err => console.warn('SW error:', err));
+  });
+}
+</script>
+</body>
+</html>
